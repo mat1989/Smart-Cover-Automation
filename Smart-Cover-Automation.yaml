@@ -1,5 +1,5 @@
 blueprint:
-  name: Cover Klima-/Zeitsteuerung mit Sonne (Dachfenster & Lamellenstoren)
+  name: Smart-Cover-Automation
   description: >
     Steuert ein Cover (Dachfenster oder Lamellenstoren) anhand von:
     - Wochentags-/Wochenend-Morgentriggern
