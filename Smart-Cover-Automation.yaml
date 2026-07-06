@@ -23,10 +23,12 @@ blueprint:
     Annahmen:
     - input_datetime für die Dauer der Mittagsruhe enthält eine Zeit wie HH:MM oder HH:MM:SS
     - bei Lamellenstoren wird bei "heiß" die Tilt/Kipp-Position gesetzt
+
   domain: automation
-  author: Matthias / Copilot
+  author: Matthias R.
+
   homeassistant:
-    min_version: 2024.6.0
+    min_version: 2027.7.0
 
   input:
     cover_entity:
@@ -137,7 +139,7 @@ blueprint:
 
     sun_azimuth_min:
       name: Azimut Minimum
-      description: Startwinkel der Sonne (Grad)
+      description: Startwinkel der Sonne in Grad
       default: 135
       selector:
         number:
@@ -149,7 +151,7 @@ blueprint:
 
     sun_azimuth_max:
       name: Azimut Maximum
-      description: Endwinkel der Sonne (Grad)
+      description: Endwinkel der Sonne in Grad
       default: 225
       selector:
         number:
@@ -161,7 +163,7 @@ blueprint:
 
     sun_min_elevation:
       name: Mindesthöhe Sonne
-      description: Minimum Elevation (z. B. 10°)
+      description: Minimum Elevation, z. B. 10°
       default: 10
       selector:
         number:
@@ -178,6 +180,7 @@ blueprint:
       selector:
         entity:
           domain: binary_sensor
+          multiple: false
 
 mode: restart
 max_exceeded: silent
@@ -202,14 +205,19 @@ triggers:
   - trigger: template
     id: midday_end
     value_template: >
-      {% set start = today_at(states(midday_start_entity)) %}
-      {% set raw = states(midday_duration_entity) %}
-      {% set parts = raw.split(':') %}
-      {% set hours = parts[0] | int(0) %}
-      {% set minutes = parts[1] | int(0) %}
-      {% set seconds = parts[2] | int(0) if parts | count > 2 else 0 %}
-      {% set end = start + timedelta(hours=hours, minutes=minutes, seconds=seconds) %}
-      {{ now().strftime('%H:%M') == end.strftime('%H:%M') }}
+      {% set start_raw = states(midday_start_entity) %}
+      {% set duration_raw = states(midday_duration_entity) %}
+      {% if start_raw not in ['unknown', 'unavailable', '', none]
+            and duration_raw not in ['unknown', 'unavailable', '', none] %}
+        {% set parts = duration_raw.split(':') %}
+        {% set hours = parts[0] | int(0) %}
+        {% set minutes = parts[1] | int(0) if parts | count > 1 else 0 %}
+        {% set seconds = parts[2] | int(0) if parts | count > 2 else 0 %}
+        {% set end = today_at(start_raw) + timedelta(hours=hours, minutes=minutes, seconds=seconds) %}
+        {{ now().strftime('%H:%M') == end.strftime('%H:%M') }}
+      {% else %}
+        false
+      {% endif %}
 
   - trigger: time
     at: !input evening_close_time
@@ -265,13 +273,6 @@ actions:
             response_variable: wx_daily
 
           - variables:
-              today_max_temp: >
-                {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
-                {% if fc | count > 0 and fc[0].get('temperature') is not none %}
-                  {{ fc[0].get('temperature') | float(0) }}
-                {% else %}
-                  {{ none }}
-                {% endif %}
               is_hot_today: >
                 {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
                 {% if fc | count > 0 and fc[0].get('temperature') is not none %}
@@ -312,6 +313,7 @@ actions:
                               entity_id: !input cover_entity
                             data:
                               position: "{{ states(partial_open_var) | int(25) }}"
+
                       - conditions:
                           - condition: template
                             value_template: "{{ cover_type_var == 'lamellenstoren' }}"
@@ -343,13 +345,6 @@ actions:
             response_variable: wx_daily
 
           - variables:
-              today_max_temp: >
-                {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
-                {% if fc | count > 0 and fc[0].get('temperature') is not none %}
-                  {{ fc[0].get('temperature') | float(0) }}
-                {% else %}
-                  {{ none }}
-                {% endif %}
               is_hot_today: >
                 {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
                 {% if fc | count > 0 and fc[0].get('temperature') is not none %}
@@ -390,6 +385,7 @@ actions:
                               entity_id: !input cover_entity
                             data:
                               position: "{{ states(partial_open_var) | int(25) }}"
+
                       - conditions:
                           - condition: template
                             value_template: "{{ cover_type_var == 'lamellenstoren' }}"
@@ -434,13 +430,6 @@ actions:
             response_variable: wx_daily
 
           - variables:
-              today_max_temp: >
-                {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
-                {% if fc | count > 0 and fc[0].get('temperature') is not none %}
-                  {{ fc[0].get('temperature') | float(0) }}
-                {% else %}
-                  {{ none }}
-                {% endif %}
               is_hot_today: >
                 {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
                 {% if fc | count > 0 and fc[0].get('temperature') is not none %}
@@ -481,6 +470,7 @@ actions:
                               entity_id: !input cover_entity
                             data:
                               position: "{{ states(partial_open_var) | int(25) }}"
+
                       - conditions:
                           - condition: template
                             value_template: "{{ cover_type_var == 'lamellenstoren' }}"
@@ -528,6 +518,7 @@ actions:
                       entity_id: !input cover_entity
                     data:
                       position: "{{ states(partial_open_var) | int(25) }}"
+
               - conditions:
                   - condition: template
                     value_template: "{{ cover_type_var == 'lamellenstoren' }}"
@@ -539,8 +530,7 @@ actions:
                       tilt_position: "{{ states(tilt_position_var) | int(50) }}"
 
       # ------------------------------------------------------------
-      # FENSTER GESCHLOSSEN
-      # -> Cover wieder schließen
+      # FENSTER GESCHLOSSEN -> Cover wieder schließen
       # ------------------------------------------------------------
       - conditions:
           - condition: trigger
@@ -549,4 +539,3 @@ actions:
           - action: cover.close_cover
             target:
               entity_id: !input cover_entity
-``
