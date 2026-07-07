@@ -2,27 +2,32 @@ blueprint:
   name: Smart-Cover-Automation
   description: >
     Steuert ein Cover (Dachfenster oder Lamellenstoren) anhand von:
-    - Wochentags-/Wochenend-Morgentriggern
-    - Wettervorhersage (heiß / nicht heiß)
-    - optionalem Sonnenstand (Azimut + Elevation)
-    - Mittagsruhe
-    - Abend-/Nacht-Schließen
+
+    - Morgentrigger werktags / Wochenende
+    - Wettervorhersage über weather_entity
+    - Tages-Maximaltemperatur gegen Temperaturschwellenwert
+    - optionalem Sonnenstand: Azimut + Elevation
+    - Sperrzeit Nacht: von Bettgehzeit Abend bis Morgentrigger
+    - Sperrzeit Mittag: von Bettgehzeit Mittag Start bis Bettgehzeit Mittag Ende
+    - alle 15 Minuten Sollzustandsprüfung ausserhalb der Sperrzeiten
     - optionalem Fenstersensor
     - globalem "do not move"-Schalter
 
     Verhalten:
-    - Morgens: Wetter prüfen, dann entweder voll öffnen oder Teilöffnung/Kippstellung setzen
-    - Optional nur dann Hitzeschutz anwenden, wenn die Sonne auf die Fassade scheint
-    - Mittags: optional schließen, nach Dauer erneut Wetter prüfen und passend öffnen
-    - Abends: optional schließen und bis morgens geschlossen lassen
+
+    - Morgens: Sollzustand wird anhand Wetter und Sonne ermittelt
+    - Tagsüber ausserhalb Sperrzeiten: alle 15 Minuten Sollzustand prüfen
+    - Bei Hitze + Sonne auf Fassade:
+      - Dachfenster: Teilöffnung
+      - Lamellenstoren: Kippstellung
+    - Wenn nicht heiss oder Sonne nicht relevant: Cover öffnen
+    - Mittags: optional zu Beginn der Mittagszeit schliessen
+    - Nach Ende der Mittagszeit: Sollzustand wird wieder ermittelt
+    - Abends: optional bei Bettgehzeit schliessen
     - Optionaler Fenstersensor:
       - Fenster auf + Cover geschlossen => Teilöffnung/Kippstellung
-      - Fenster zu => wieder schließen
+      - Fenster zu => Sollzustand wird neu ermittelt
     - Wenn do_not_move = on: keine automatische Bewegung
-
-    Annahmen:
-    - input_datetime für die Dauer der Mittagsruhe enthält eine Zeit wie HH:MM oder HH:MM:SS
-    - bei Lamellenstoren wird bei "heiß" die Tilt/Kipp-Position gesetzt
 
   domain: automation
   author: Matthias R.
@@ -53,27 +58,31 @@ blueprint:
     weather_entity:
       name: Wetter-Entity
       description: Wetter-Entity für die Tagesprognose
+      default: weather.weather_at_9444
       selector:
         entity:
           domain: weather
 
-    do_not_move_boolean:
-      name: Do not move
-      description: Wenn dieser Schalter auf ON steht, wird keine automatische Bewegung ausgeführt
-      selector:
-        entity:
-          domain: input_boolean
-
     temperature_threshold_entity:
       name: Temperaturschwellenwert
-      description: input_number für "zu heiß"
+      description: input_number für "zu heiss"
+      default: input_number.cover_temperatur_schwellenwert
       selector:
         entity:
           domain: input_number
 
+    do_not_move_boolean:
+      name: Do not move
+      description: Wenn dieser Schalter auf ON steht, wird keine automatische Bewegung ausgeführt
+      default: input_boolean.cover_do_not_move
+      selector:
+        entity:
+          domain: input_boolean
+
     partial_open_entity:
       name: Teilöffnung Dachfenster
       description: input_number für Teilöffnung des Dachfensters (0-100)
+      default: input_number.external_cover_teiloffnung
       selector:
         entity:
           domain: input_number
@@ -81,58 +90,66 @@ blueprint:
     tilt_position_entity:
       name: Kippstellung Lamellenstoren
       description: input_number für Lamellen-Kippstellung (0-100)
+      default: input_number.storren_kippstellung
       selector:
         entity:
           domain: input_number
 
     weekday_morning_time:
-      name: Morgentrigger werktags
+      name: Morgentrigger Werktags
+      default: input_datetime.cover_offnen_wochentags
       selector:
         entity:
           domain: input_datetime
 
     weekend_morning_time:
       name: Morgentrigger Wochenende
+      default: input_datetime.cover_offnen_wochenende
       selector:
         entity:
           domain: input_datetime
 
     midday_start_time:
-      name: Bett geh Zeit Mittags / Start Mittagsruhe
+      name: Bettgehzeit Mittag Start
+      description: Start der Mittags-Sperrzeit
+      default: input_datetime.cover_bett_geh_zeit_mittag_start
       selector:
         entity:
           domain: input_datetime
 
-    midday_duration:
-      name: Dauer der Mittagsruhe
-      description: input_datetime mit HH:MM oder HH:MM:SS, z. B. 01:30:00
+    midday_end_time:
+      name: Bettgehzeit Mittag Ende
+      description: Ende der Mittags-Sperrzeit
+      default: input_datetime.cover_bett_geh_zeit_mittag_ende
       selector:
         entity:
           domain: input_datetime
 
     evening_close_time:
-      name: Bett geh Zeit Abends
+      name: Bettgehzeit Abend
+      description: Start der Nacht-Sperrzeit
+      default: input_datetime.cover_bett_geh_zeit_abend
       selector:
         entity:
           domain: input_datetime
 
-    enable_midday_close:
-      name: Mittagsruhe aktiv
-      description: Nur aktivieren, wenn dieses Cover mittags geschlossen werden soll
+    close_before_midday:
+      name: Vor Mittagszeit schliessen
+      description: Wenn aktiv, wird das Cover zu Beginn der Mittagszeit geschlossen
       default: true
       selector:
         boolean: {}
 
-    enable_evening_close:
-      name: Abends/Nachtschließen aktiv
-      description: Nur aktivieren, wenn dieses Cover abends geschlossen werden soll
+    close_before_evening:
+      name: Vor Bettgehzeit Abend schliessen
+      description: Wenn aktiv, wird das Cover zur Bettgehzeit am Abend geschlossen
       default: true
       selector:
         boolean: {}
 
     enable_sun_condition:
       name: Sonnenbedingung aktiv
-      description: Nur reagieren, wenn Sonne auf die Fassade scheint
+      description: Nur Hitzeschutz anwenden, wenn Sonne auf die Fassade scheint
       default: true
       selector:
         boolean: {}
@@ -185,10 +202,6 @@ blueprint:
 mode: restart
 max_exceeded: silent
 
-trigger_variables:
-  midday_start_entity: !input midday_start_time
-  midday_duration_entity: !input midday_duration
-
 triggers:
   - trigger: time
     at: !input weekday_morning_time
@@ -198,26 +211,17 @@ triggers:
     at: !input weekend_morning_time
     id: morning_weekend
 
+  - trigger: time_pattern
+    minutes: "/15"
+    id: periodic_check
+
   - trigger: time
     at: !input midday_start_time
     id: midday_start
 
-  - trigger: template
+  - trigger: time
+    at: !input midday_end_time
     id: midday_end
-    value_template: >
-      {% set start_raw = states(midday_start_entity) %}
-      {% set duration_raw = states(midday_duration_entity) %}
-      {% if start_raw not in ['unknown', 'unavailable', '', none]
-            and duration_raw not in ['unknown', 'unavailable', '', none] %}
-        {% set parts = duration_raw.split(':') %}
-        {% set hours = parts[0] | int(0) %}
-        {% set minutes = parts[1] | int(0) if parts | count > 1 else 0 %}
-        {% set seconds = parts[2] | int(0) if parts | count > 2 else 0 %}
-        {% set end = today_at(start_raw) + timedelta(hours=hours, minutes=minutes, seconds=seconds) %}
-        {{ now().strftime('%H:%M') == end.strftime('%H:%M') }}
-      {% else %}
-        false
-      {% endif %}
 
   - trigger: time
     at: !input evening_close_time
@@ -236,13 +240,22 @@ triggers:
 variables:
   cover_entity_var: !input cover_entity
   cover_type_var: !input cover_type
+
   weather_entity_var: !input weather_entity
-  do_not_move_var: !input do_not_move_boolean
   temp_threshold_var: !input temperature_threshold_entity
+
   partial_open_var: !input partial_open_entity
   tilt_position_var: !input tilt_position_entity
-  enable_midday_close_var: !input enable_midday_close
-  enable_evening_close_var: !input enable_evening_close
+
+  weekday_morning_time_var: !input weekday_morning_time
+  weekend_morning_time_var: !input weekend_morning_time
+  midday_start_time_var: !input midday_start_time
+  midday_end_time_var: !input midday_end_time
+  evening_close_time_var: !input evening_close_time
+
+  close_before_midday_var: !input close_before_midday
+  close_before_evening_var: !input close_before_evening
+
   enable_sun_condition_var: !input enable_sun_condition
   sun_azimuth_min_var: !input sun_azimuth_min
   sun_azimuth_max_var: !input sun_azimuth_max
@@ -254,6 +267,56 @@ actions:
   - condition: state
     entity_id: !input do_not_move_boolean
     state: "off"
+
+  - variables:
+      is_weekend_today: "{{ now().isoweekday() in [6, 7] }}"
+
+      active_morning_entity: >
+        {% if now().isoweekday() in [6, 7] %}
+          {{ weekend_morning_time_var }}
+        {% else %}
+          {{ weekday_morning_time_var }}
+        {% endif %}
+
+      is_night_blocked: >
+        {% set now_time = now() %}
+        {% set evening_raw = states(evening_close_time_var) %}
+        {% set morning_raw = states(active_morning_entity | trim) %}
+
+        {% if evening_raw in ['unknown', 'unavailable', '', none]
+              or morning_raw in ['unknown', 'unavailable', '', none] %}
+          false
+        {% else %}
+          {% set evening = today_at(evening_raw) %}
+          {% set morning = today_at(morning_raw) %}
+
+          {% if evening <= morning %}
+            {{ now_time >= evening and now_time < morning }}
+          {% else %}
+            {{ now_time >= evening or now_time < morning }}
+          {% endif %}
+        {% endif %}
+
+      is_midday_blocked: >
+        {% set now_time = now() %}
+        {% set start_raw = states(midday_start_time_var) %}
+        {% set end_raw = states(midday_end_time_var) %}
+
+        {% if start_raw in ['unknown', 'unavailable', '', none]
+              or end_raw in ['unknown', 'unavailable', '', none] %}
+          false
+        {% else %}
+          {% set start = today_at(start_raw) %}
+          {% set end = today_at(end_raw) %}
+
+          {% if start <= end %}
+            {{ now_time >= start and now_time < end }}
+          {% else %}
+            {{ now_time >= start or now_time < end }}
+          {% endif %}
+        {% endif %}
+
+      is_any_blocked_time: "{{ is_night_blocked | bool(false) or is_midday_blocked | bool(false) }}"
 
   - choose:
       # ------------------------------------------------------------
@@ -280,6 +343,7 @@ actions:
                 {% else %}
                   false
                 {% endif %}
+
               sun_matches_facade: >
                 {% if not enable_sun_condition_var %}
                   true
@@ -290,18 +354,22 @@ actions:
                   {% set max_az = sun_azimuth_max_var | float(225) %}
                   {% set min_el = sun_min_elevation_var | float(10) %}
                   {% set in_elevation = elevation >= min_el %}
+
                   {% if min_az <= max_az %}
                     {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
                   {% else %}
                     {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
                   {% endif %}
+
                   {{ in_elevation and in_azimuth }}
                 {% endif %}
+
+              is_heat_protection_required: "{{ is_hot_today | bool(false) and sun_matches_facade | bool(false) }}"
 
           - choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ is_hot_today and sun_matches_facade }}"
+                    value_template: "{{ is_heat_protection_required | bool(false) }}"
                 sequence:
                   - choose:
                       - conditions:
@@ -352,6 +420,7 @@ actions:
                 {% else %}
                   false
                 {% endif %}
+
               sun_matches_facade: >
                 {% if not enable_sun_condition_var %}
                   true
@@ -362,18 +431,22 @@ actions:
                   {% set max_az = sun_azimuth_max_var | float(225) %}
                   {% set min_el = sun_min_elevation_var | float(10) %}
                   {% set in_elevation = elevation >= min_el %}
+
                   {% if min_az <= max_az %}
                     {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
                   {% else %}
                     {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
                   {% endif %}
+
                   {{ in_elevation and in_azimuth }}
                 {% endif %}
+
+              is_heat_protection_required: "{{ is_hot_today | bool(false) and sun_matches_facade | bool(false) }}"
 
           - choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ is_hot_today and sun_matches_facade }}"
+                    value_template: "{{ is_heat_protection_required | bool(false) }}"
                 sequence:
                   - choose:
                       - conditions:
@@ -401,26 +474,14 @@ actions:
                   entity_id: !input cover_entity
 
       # ------------------------------------------------------------
-      # MITTAGS START -> SCHLIESSEN
+      # PERIODISCHE SOLLZUSTANDSPRÜFUNG
+      # Alle 15 Minuten, aber nur ausserhalb der Sperrzeiten
       # ------------------------------------------------------------
       - conditions:
           - condition: trigger
-            id: midday_start
+            id: periodic_check
           - condition: template
-            value_template: "{{ enable_midday_close_var }}"
-        sequence:
-          - action: cover.close_cover
-            target:
-              entity_id: !input cover_entity
-
-      # ------------------------------------------------------------
-      # MITTAGS ENDE -> WIEDER ÖFFNEN JE NACH WETTER + SONNE
-      # ------------------------------------------------------------
-      - conditions:
-          - condition: trigger
-            id: midday_end
-          - condition: template
-            value_template: "{{ enable_midday_close_var }}"
+            value_template: "{{ not is_any_blocked_time | bool(false) }}"
         sequence:
           - action: weather.get_forecasts
             target:
@@ -437,6 +498,7 @@ actions:
                 {% else %}
                   false
                 {% endif %}
+
               sun_matches_facade: >
                 {% if not enable_sun_condition_var %}
                   true
@@ -447,18 +509,22 @@ actions:
                   {% set max_az = sun_azimuth_max_var | float(225) %}
                   {% set min_el = sun_min_elevation_var | float(10) %}
                   {% set in_elevation = elevation >= min_el %}
+
                   {% if min_az <= max_az %}
                     {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
                   {% else %}
                     {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
                   {% endif %}
+
                   {{ in_elevation and in_azimuth }}
                 {% endif %}
+
+              is_heat_protection_required: "{{ is_hot_today | bool(false) and sun_matches_facade | bool(false) }}"
 
           - choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ is_hot_today and sun_matches_facade }}"
+                    value_template: "{{ is_heat_protection_required | bool(false) }}"
                 sequence:
                   - choose:
                       - conditions:
@@ -486,13 +552,104 @@ actions:
                   entity_id: !input cover_entity
 
       # ------------------------------------------------------------
-      # ABENDS -> SCHLIESSEN
+      # MITTAG START
+      # Optional vor Mittagszeit schliessen
+      # ------------------------------------------------------------
+      - conditions:
+          - condition: trigger
+            id: midday_start
+          - condition: template
+            value_template: "{{ close_before_midday_var }}"
+        sequence:
+          - action: cover.close_cover
+            target:
+              entity_id: !input cover_entity
+
+      # ------------------------------------------------------------
+      # MITTAG ENDE
+      # Sperrzeit endet, Sollzustand wird neu gesetzt
+      # ------------------------------------------------------------
+      - conditions:
+          - condition: trigger
+            id: midday_end
+        sequence:
+          - action: weather.get_forecasts
+            target:
+              entity_id: !input weather_entity
+            data:
+              type: daily
+            response_variable: wx_daily
+
+          - variables:
+              is_hot_today: >
+                {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
+                {% if fc | count > 0 and fc[0].get('temperature') is not none %}
+                  {{ (fc[0].get('temperature') | float(0)) >= (states(temp_threshold_var) | float(26)) }}
+                {% else %}
+                  false
+                {% endif %}
+
+              sun_matches_facade: >
+                {% if not enable_sun_condition_var %}
+                  true
+                {% else %}
+                  {% set elevation = state_attr('sun.sun', 'elevation') | float(-90) %}
+                  {% set azimuth = state_attr('sun.sun', 'azimuth') | float(0) %}
+                  {% set min_az = sun_azimuth_min_var | float(135) %}
+                  {% set max_az = sun_azimuth_max_var | float(225) %}
+                  {% set min_el = sun_min_elevation_var | float(10) %}
+                  {% set in_elevation = elevation >= min_el %}
+
+                  {% if min_az <= max_az %}
+                    {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
+                  {% else %}
+                    {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
+                  {% endif %}
+
+                  {{ in_elevation and in_azimuth }}
+                {% endif %}
+
+              is_heat_protection_required: "{{ is_hot_today | bool(false) and sun_matches_facade | bool(false) }}"
+
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ is_heat_protection_required | bool(false) }}"
+                sequence:
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ cover_type_var == 'dachfenster' }}"
+                        sequence:
+                          - action: cover.set_cover_position
+                            target:
+                              entity_id: !input cover_entity
+                            data:
+                              position: "{{ states(partial_open_var) | int(25) }}"
+
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ cover_type_var == 'lamellenstoren' }}"
+                        sequence:
+                          - action: cover.set_cover_tilt_position
+                            target:
+                              entity_id: !input cover_entity
+                            data:
+                              tilt_position: "{{ states(tilt_position_var) | int(50) }}"
+            default:
+              - action: cover.open_cover
+                target:
+                  entity_id: !input cover_entity
+
+      # ------------------------------------------------------------
+      # ABEND
+      # Optional vor Bettgehzeit schliessen
       # ------------------------------------------------------------
       - conditions:
           - condition: trigger
             id: evening_close
           - condition: template
-            value_template: "{{ enable_evening_close_var }}"
+            value_template: "{{ close_before_evening_var }}"
         sequence:
           - action: cover.close_cover
             target:
@@ -500,7 +657,7 @@ actions:
 
       # ------------------------------------------------------------
       # FENSTER GEÖFFNET
-      # Wenn Cover geschlossen ist -> Teilöffnung/Kippstellung
+      # Wenn Cover geschlossen ist, dann Teilöffnung/Kippstellung
       # ------------------------------------------------------------
       - conditions:
           - condition: trigger
@@ -530,12 +687,99 @@ actions:
                       tilt_position: "{{ states(tilt_position_var) | int(50) }}"
 
       # ------------------------------------------------------------
-      # FENSTER GESCHLOSSEN -> Cover wieder schließen
+      # FENSTER GESCHLOSSEN
+      # Danach Sollzustand neu ermitteln
       # ------------------------------------------------------------
       - conditions:
           - condition: trigger
             id: window_closed
         sequence:
-          - action: cover.close_cover
-            target:
-              entity_id: !input cover_entity
+          - choose:
+              # Nacht-Sperrzeit und Abend-Schliessen aktiv:
+              # Cover wieder schliessen
+              - conditions:
+                  - condition: template
+                    value_template: "{{ is_night_blocked | bool(false) and close_before_evening_var }}"
+                sequence:
+                  - action: cover.close_cover
+                    target:
+                      entity_id: !input cover_entity
+
+              # Mittags-Sperrzeit und Mittag-Schliessen aktiv:
+              # Cover wieder schliessen
+              - conditions:
+                  - condition: template
+                    value_template: "{{ is_midday_blocked | bool(false) and close_before_midday_var }}"
+                sequence:
+                  - action: cover.close_cover
+                    target:
+                      entity_id: !input cover_entity
+
+            default:
+              - action: weather.get_forecasts
+                target:
+                  entity_id: !input weather_entity
+                data:
+                  type: daily
+                response_variable: wx_daily
+
+              - variables:
+                  is_hot_today: >
+                    {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
+                    {% if fc | count > 0 and fc[0].get('temperature') is not none %}
+                      {{ (fc[0].get('temperature') | float(0)) >= (states(temp_threshold_var) | float(26)) }}
+                    {% else %}
+                      false
+                    {% endif %}
+
+                  sun_matches_facade: >
+                    {% if not enable_sun_condition_var %}
+                      true
+                    {% else %}
+                      {% set elevation = state_attr('sun.sun', 'elevation') | float(-90) %}
+                      {% set azimuth = state_attr('sun.sun', 'azimuth') | float(0) %}
+                      {% set min_az = sun_azimuth_min_var | float(135) %}
+                      {% set max_az = sun_azimuth_max_var | float(225) %}
+                      {% set min_el = sun_min_elevation_var | float(10) %}
+                      {% set in_elevation = elevation >= min_el %}
+
+                      {% if min_az <= max_az %}
+                        {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
+                      {% else %}
+                        {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
+                      {% endif %}
+
+                      {{ in_elevation and in_azimuth }}
+                    {% endif %}
+
+                  is_heat_protection_required: "{{ is_hot_today | bool(false) and sun_matches_facade | bool(false) }}"
+
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ is_heat_protection_required | bool(false) }}"
+                    sequence:
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ cover_type_var == 'dachfenster' }}"
+                            sequence:
+                              - action: cover.set_cover_position
+                                target:
+                                  entity_id: !input cover_entity
+                                data:
+                                  position: "{{ states(partial_open_var) | int(25) }}"
+
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ cover_type_var == 'lamellenstoren' }}"
+                            sequence:
+                              - action: cover.set_cover_tilt_position
+                                target:
+                                  entity_id: !input cover_entity
+                                data:
+                                  tilt_position: "{{ states(tilt_position_var) | int(50) }}"
+                default:
+                  - action: cover.open_cover
+                    target:
+                      entity_id: !input cover_entity
