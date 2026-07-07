@@ -85,6 +85,14 @@ blueprint:
       selector:
         boolean: {}
 
+    logging_enabled:
+      name: Logging aktivieren
+      description: Schreibt Debug-Informationen ins Logbook
+      default: input_boolean.cover_logging
+      selector:
+        entity:
+          domain: input_boolean
+
     sun_azimuth_min:
       name: Azimut Minimum
       description: Startwinkel der Sonne in Grad
@@ -241,6 +249,8 @@ variables:
   cover_entity_var: !input cover_entity
   cover_type_var: !input cover_type
 
+  logging_enabled_var: !input logging_enabled
+
   weather_entity_var: !input weather_entity
   temp_threshold_var: !input temperature_threshold_entity
 
@@ -363,6 +373,26 @@ actions:
   - condition: state
     entity_id: !input do_not_move_boolean
     state: "off"
+  - if:
+      - condition: state
+        entity_id: !input logging_enabled
+        state: "on"
+    then:
+      - action: logbook.log
+        data:
+          name: Smart Cover Automation
+          entity_id: !input cover_entity
+          message: >
+            Trigger={{ trigger.id }};
+            CoverType={{ cover_type_var }};
+            MaxTemp={{ max_temp_today }};
+            Threshold={{ states(temp_threshold_var) }};
+            HotToday={{ is_hot_today }};
+            SunMatches={{ sun_matches_facade }};
+            HeatProtection={{ is_heat_protection_required }};
+            NightBlocked={{ is_night_blocked }};
+            MiddayBlocked={{ is_midday_blocked }};
+            DoNotMove={{ states(do_not_move_boolean) }}
 
   - choose:
       # ------------------------------------------------------------
