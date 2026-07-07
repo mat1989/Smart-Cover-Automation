@@ -58,7 +58,7 @@ blueprint:
     weather_entity:
       name: Wetter-Entity
       description: Wetter-Entity mit Attribut für die maximale Tagestemperatur
-      default: weather.forecast_home
+      default: weather.weather_at_9444
       selector:
         entity:
           domain: weather
@@ -263,23 +263,21 @@ variables:
   sun_min_elevation_var: !input sun_min_elevation
 
   max_temp_today: >
-    {{
-      state_attr(weather_entity_var, weather_temperature_attribute_var)
-      | float(0)
-    }}
+    {% set forecast = state_attr(weather_entity_var, 'forecast') %}
 
-  temperature_threshold: >
-    {{
-      states(temp_threshold_var)
-      | float(26)
-    }}
+    {% if forecast and forecast | count > 0 %}
+      {{ forecast[0].temperature | float(0) }}
+    {% else %}
+      0
+    {% endif %}
 
   is_hot_today: >
     {{
-      max_temp_today | float(0)
+      max_temp_today
       >=
-      temperature_threshold | float(26)
+      states(temp_threshold_var) | float(26)
     }}
+
 
   sun_matches_facade: >
     {% if not enable_sun_condition_var %}
