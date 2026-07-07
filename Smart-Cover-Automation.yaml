@@ -90,8 +90,7 @@ blueprint:
       description: Schreibt Debug-Informationen ins Logbook
       default: false
       selector:
-        entity:
-          boolean: {}
+        boolean: {}
 
     sun_azimuth_min:
       name: Azimut Minimum
