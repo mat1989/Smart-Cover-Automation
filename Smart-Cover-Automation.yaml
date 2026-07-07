@@ -4,8 +4,8 @@ blueprint:
     Steuert ein Cover (Dachfenster oder Lamellenstoren) anhand von:
 
     - Morgentrigger werktags / Wochenende
-    - Wettervorhersage über weather_entity
-    - Tages-Maximaltemperatur gegen Temperaturschwellenwert
+    - Wetter-Entity mit Attribut für Tages-Maximaltemperatur
+    - Temperaturschwellenwert
     - optionalem Sonnenstand: Azimut + Elevation
     - Sperrzeit Nacht: von Bettgehzeit Abend bis Morgentrigger
     - Sperrzeit Mittag: von Bettgehzeit Mittag Start bis Bettgehzeit Mittag Ende
@@ -15,7 +15,7 @@ blueprint:
 
     Verhalten:
 
-    - Morgens: Sollzustand wird anhand Wetter und Sonne ermittelt
+    - Morgens: Sollzustand wird anhand Maximaltemperatur und Sonne ermittelt
     - Tagsüber ausserhalb Sperrzeiten: alle 15 Minuten Sollzustand prüfen
     - Bei Hitze + Sonne auf Fassade:
       - Dachfenster: Teilöffnung
@@ -55,13 +55,20 @@ blueprint:
             - label: Lamellenstoren
               value: lamellenstoren
 
-    temperature_forecast_sensor:
-      name: Temperatursensor Tagesextrema
-      description: Sensor mit dem Attribut "Max temp"
-      default: sensor.wetter_heute_extrema
+    weather_entity:
+      name: Wetter-Entity
+      description: Wetter-Entity mit Attribut für die maximale Tagestemperatur
+      default: weather.forecast_home
       selector:
         entity:
-          domain: sensor
+          domain: weather
+
+    weather_temperature_attribute:
+      name: Attribut maximale Tagestemperatur
+      description: Attribut der Wetter-Entity, z. B. "Max temp"
+      default: "Max temp"
+      selector:
+        text: {}
 
     temperature_threshold_entity:
       name: Temperaturschwellenwert
@@ -241,7 +248,8 @@ variables:
   cover_entity_var: !input cover_entity
   cover_type_var: !input cover_type
 
-  forecast_sensor_var: !input temperature_forecast_sensor
+  weather_entity_var: !input weather_entity
+  weather_temperature_attribute_var: !input weather_temperature_attribute
   temp_threshold_var: !input temperature_threshold_entity
 
   partial_open_var: !input partial_open_entity
@@ -261,62 +269,110 @@ variables:
   sun_azimuth_max_var: !input sun_azimuth_max
   sun_min_elevation_var: !input sun_min_elevation
 
+  max_temp_today: >
+    {{
+      state_attr(weather_entity_var, weather_temperature_attribute_var)
+      | float(0)
+    }}
+
+  temperature_threshold: >
+    {{
+      states(temp_threshold_var)
+      | float(26)
+    }}
+
+  is_hot_today: >
+    {{
+      max_temp_today | float(0)
+      >=
+      temperature_threshold | float(26)
+    }}
+
+  sun_matches_facade: >
+    {% if not enable_sun_condition_var %}
+      true
+    {% else %}
+      {% set elevation = state_attr('sun.sun', 'elevation') | float(-90) %}
+      {% set azimuth = state_attr('sun.sun', 'azimuth') | float(0) %}
+      {% set min_az = sun_azimuth_min_var | float(135) %}
+      {% set max_az = sun_azimuth_max_var | float(225) %}
+      {% set min_el = sun_min_elevation_var | float(10) %}
+      {% set in_elevation = elevation >= min_el %}
+
+      {% if min_az <= max_az %}
+        {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
+      {% else %}
+        {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
+      {% endif %}
+
+      {{ in_elevation and in_azimuth }}
+    {% endif %}
+
+  is_heat_protection_required: >
+    {{
+      is_hot_today | bool(false)
+      and
+      sun_matches_facade | bool(false)
+    }}
+
+  active_morning_entity: >
+    {% if now().isoweekday() in [6, 7] %}
+      {{ weekend_morning_time_var }}
+    {% else %}
+      {{ weekday_morning_time_var }}
+    {% endif %}
+
+  is_night_blocked: >
+    {% set now_time = now() %}
+    {% set evening_raw = states(evening_close_time_var) %}
+    {% set morning_raw = states(active_morning_entity | trim) %}
+
+    {% if evening_raw in ['unknown', 'unavailable', '', none]
+          or morning_raw in ['unknown', 'unavailable', '', none] %}
+      false
+    {% else %}
+      {% set evening = today_at(evening_raw) %}
+      {% set morning = today_at(morning_raw) %}
+
+      {% if evening <= morning %}
+        {{ now_time >= evening and now_time < morning }}
+      {% else %}
+        {{ now_time >= evening or now_time < morning }}
+      {% endif %}
+    {% endif %}
+
+  is_midday_blocked: >
+    {% set now_time = now() %}
+    {% set start_raw = states(midday_start_time_var) %}
+    {% set end_raw = states(midday_end_time_var) %}
+
+    {% if start_raw in ['unknown', 'unavailable', '', none]
+          or end_raw in ['unknown', 'unavailable', '', none] %}
+      false
+    {% else %}
+      {% set start = today_at(start_raw) %}
+      {% set end = today_at(end_raw) %}
+
+      {% if start <= end %}
+        {{ now_time >= start and now_time < end }}
+      {% else %}
+        {{ now_time >= start or now_time < end }}
+      {% endif %}
+    {% endif %}
+
+  is_any_blocked_time: >
+    {{
+      is_night_blocked | bool(false)
+      or
+      is_midday_blocked | bool(false)
+    }}
+
 conditions: []
 
 actions:
   - condition: state
     entity_id: !input do_not_move_boolean
     state: "off"
-
-  - variables:
-      is_weekend_today: "{{ now().isoweekday() in [6, 7] }}"
-
-      active_morning_entity: >
-        {% if now().isoweekday() in [6, 7] %}
-          {{ weekend_morning_time_var }}
-        {% else %}
-          {{ weekday_morning_time_var }}
-        {% endif %}
-
-      is_night_blocked: >
-        {% set now_time = now() %}
-        {% set evening_raw = states(evening_close_time_var) %}
-        {% set morning_raw = states(active_morning_entity | trim) %}
-
-        {% if evening_raw in ['unknown', 'unavailable', '', none]
-              or morning_raw in ['unknown', 'unavailable', '', none] %}
-          false
-        {% else %}
-          {% set evening = today_at(evening_raw) %}
-          {% set morning = today_at(morning_raw) %}
-
-          {% if evening <= morning %}
-            {{ now_time >= evening and now_time < morning }}
-          {% else %}
-            {{ now_time >= evening or now_time < morning }}
-          {% endif %}
-        {% endif %}
-
-      is_midday_blocked: >
-        {% set now_time = now() %}
-        {% set start_raw = states(midday_start_time_var) %}
-        {% set end_raw = states(midday_end_time_var) %}
-
-        {% if start_raw in ['unknown', 'unavailable', '', none]
-              or end_raw in ['unknown', 'unavailable', '', none] %}
-          false
-        {% else %}
-          {% set start = today_at(start_raw) %}
-          {% set end = today_at(end_raw) %}
-
-          {% if start <= end %}
-            {{ now_time >= start and now_time < end }}
-          {% else %}
-            {{ now_time >= start or now_time < end }}
-          {% endif %}
-        {% endif %}
-
-      is_any_blocked_time: "{{ is_night_blocked | bool(false) or is_midday_blocked | bool(false) }}"
 
   - choose:
       # ------------------------------------------------------------
@@ -328,44 +384,6 @@ actions:
           - condition: template
             value_template: "{{ now().isoweekday() in [1, 2, 3, 4, 5] }}"
         sequence:
-          - action: weather.get_forecasts
-            target:
-              entity_id: !input weather_entity
-            data:
-              type: daily
-            response_variable: wx_daily
-
-          - variables:
-              is_hot_today: >
-                {{
-                  state_attr(forecast_sensor_var, 'Max temp') | float(0)
-                  >=
-                  states(temp_threshold_var) | float(26)
-                }}
-
-
-              sun_matches_facade: >
-                {% if not enable_sun_condition_var %}
-                  true
-                {% else %}
-                  {% set elevation = state_attr('sun.sun', 'elevation') | float(-90) %}
-                  {% set azimuth = state_attr('sun.sun', 'azimuth') | float(0) %}
-                  {% set min_az = sun_azimuth_min_var | float(135) %}
-                  {% set max_az = sun_azimuth_max_var | float(225) %}
-                  {% set min_el = sun_min_elevation_var | float(10) %}
-                  {% set in_elevation = elevation >= min_el %}
-
-                  {% if min_az <= max_az %}
-                    {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
-                  {% else %}
-                    {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
-                  {% endif %}
-
-                  {{ in_elevation and in_azimuth }}
-                {% endif %}
-
-              is_heat_protection_required: "{{ is_hot_today | bool(false) and sun_matches_facade | bool(false) }}"
-
           - choose:
               - conditions:
                   - condition: template
@@ -405,43 +423,6 @@ actions:
           - condition: template
             value_template: "{{ now().isoweekday() in [6, 7] }}"
         sequence:
-          - action: weather.get_forecasts
-            target:
-              entity_id: !input weather_entity
-            data:
-              type: daily
-            response_variable: wx_daily
-
-          - variables:
-              is_hot_today: >
-                {{
-                  state_attr(forecast_sensor_var, 'Max temp') | float(0)
-                  >=
-                  states(temp_threshold_var) | float(26)
-                }}
-
-              sun_matches_facade: >
-                {% if not enable_sun_condition_var %}
-                  true
-                {% else %}
-                  {% set elevation = state_attr('sun.sun', 'elevation') | float(-90) %}
-                  {% set azimuth = state_attr('sun.sun', 'azimuth') | float(0) %}
-                  {% set min_az = sun_azimuth_min_var | float(135) %}
-                  {% set max_az = sun_azimuth_max_var | float(225) %}
-                  {% set min_el = sun_min_elevation_var | float(10) %}
-                  {% set in_elevation = elevation >= min_el %}
-
-                  {% if min_az <= max_az %}
-                    {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
-                  {% else %}
-                    {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
-                  {% endif %}
-
-                  {{ in_elevation and in_azimuth }}
-                {% endif %}
-
-              is_heat_protection_required: "{{ is_hot_today | bool(false) and sun_matches_facade | bool(false) }}"
-
           - choose:
               - conditions:
                   - condition: template
@@ -480,45 +461,8 @@ actions:
           - condition: trigger
             id: periodic_check
           - condition: template
-            value_template: "{{ not is_any_blocked_time | bool(false) }}"
+            value_template: "{{ not (is_any_blocked_time | bool(false)) }}"
         sequence:
-          - action: weather.get_forecasts
-            target:
-              entity_id: !input weather_entity
-            data:
-              type: daily
-            response_variable: wx_daily
-
-          - variables:
-              is_hot_today: >
-                {{
-                  state_attr(forecast_sensor_var, 'Max temp') | float(0)
-                  >=
-                  states(temp_threshold_var) | float(26)
-                }}
-
-              sun_matches_facade: >
-                {% if not enable_sun_condition_var %}
-                  true
-                {% else %}
-                  {% set elevation = state_attr('sun.sun', 'elevation') | float(-90) %}
-                  {% set azimuth = state_attr('sun.sun', 'azimuth') | float(0) %}
-                  {% set min_az = sun_azimuth_min_var | float(135) %}
-                  {% set max_az = sun_azimuth_max_var | float(225) %}
-                  {% set min_el = sun_min_elevation_var | float(10) %}
-                  {% set in_elevation = elevation >= min_el %}
-
-                  {% if min_az <= max_az %}
-                    {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
-                  {% else %}
-                    {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
-                  {% endif %}
-
-                  {{ in_elevation and in_azimuth }}
-                {% endif %}
-
-              is_heat_protection_required: "{{ is_hot_today | bool(false) and sun_matches_facade | bool(false) }}"
-
           - choose:
               - conditions:
                   - condition: template
@@ -571,43 +515,6 @@ actions:
           - condition: trigger
             id: midday_end
         sequence:
-          - action: weather.get_forecasts
-            target:
-              entity_id: !input weather_entity
-            data:
-              type: daily
-            response_variable: wx_daily
-
-          - variables:
-              is_hot_today: >
-                {{
-                  state_attr(forecast_sensor_var, 'Max temp') | float(0)
-                  >=
-                  states(temp_threshold_var) | float(26)
-                }}
-
-              sun_matches_facade: >
-                {% if not enable_sun_condition_var %}
-                  true
-                {% else %}
-                  {% set elevation = state_attr('sun.sun', 'elevation') | float(-90) %}
-                  {% set azimuth = state_attr('sun.sun', 'azimuth') | float(0) %}
-                  {% set min_az = sun_azimuth_min_var | float(135) %}
-                  {% set max_az = sun_azimuth_max_var | float(225) %}
-                  {% set min_el = sun_min_elevation_var | float(10) %}
-                  {% set in_elevation = elevation >= min_el %}
-
-                  {% if min_az <= max_az %}
-                    {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
-                  {% else %}
-                    {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
-                  {% endif %}
-
-                  {{ in_elevation and in_azimuth }}
-                {% endif %}
-
-              is_heat_protection_required: "{{ is_hot_today | bool(false) and sun_matches_facade | bool(false) }}"
-
           - choose:
               - conditions:
                   - condition: template
@@ -686,6 +593,7 @@ actions:
       # ------------------------------------------------------------
       # FENSTER GESCHLOSSEN
       # Danach Sollzustand neu ermitteln
+      # Sperrzeiten werden berücksichtigt
       # ------------------------------------------------------------
       - conditions:
           - condition: trigger
@@ -696,7 +604,12 @@ actions:
               # Cover wieder schliessen
               - conditions:
                   - condition: template
-                    value_template: "{{ is_night_blocked | bool(false) and close_before_evening_var }}"
+                    value_template: >
+                      {{
+                        is_night_blocked | bool(false)
+                        and
+                        close_before_evening_var
+                      }}
                 sequence:
                   - action: cover.close_cover
                     target:
@@ -706,50 +619,18 @@ actions:
               # Cover wieder schliessen
               - conditions:
                   - condition: template
-                    value_template: "{{ is_midday_blocked | bool(false) and close_before_midday_var }}"
+                    value_template: >
+                      {{
+                        is_midday_blocked | bool(false)
+                        and
+                        close_before_midday_var
+                      }}
                 sequence:
                   - action: cover.close_cover
                     target:
                       entity_id: !input cover_entity
 
             default:
-              - action: weather.get_forecasts
-                target:
-                  entity_id: !input weather_entity
-                data:
-                  type: daily
-                response_variable: wx_daily
-
-              - variables:
-                  is_hot_today: >
-                    {{
-                      state_attr(forecast_sensor_var, 'Max temp') | float(0)
-                      >=
-                      states(temp_threshold_var) | float(26)
-                    }}
-
-                  sun_matches_facade: >
-                    {% if not enable_sun_condition_var %}
-                      true
-                    {% else %}
-                      {% set elevation = state_attr('sun.sun', 'elevation') | float(-90) %}
-                      {% set azimuth = state_attr('sun.sun', 'azimuth') | float(0) %}
-                      {% set min_az = sun_azimuth_min_var | float(135) %}
-                      {% set max_az = sun_azimuth_max_var | float(225) %}
-                      {% set min_el = sun_min_elevation_var | float(10) %}
-                      {% set in_elevation = elevation >= min_el %}
-
-                      {% if min_az <= max_az %}
-                        {% set in_azimuth = azimuth >= min_az and azimuth <= max_az %}
-                      {% else %}
-                        {% set in_azimuth = azimuth >= min_az or azimuth <= max_az %}
-                      {% endif %}
-
-                      {{ in_elevation and in_azimuth }}
-                    {% endif %}
-
-                  is_heat_protection_required: "{{ is_hot_today | bool(false) and sun_matches_facade | bool(false) }}"
-
               - choose:
                   - conditions:
                       - condition: template
