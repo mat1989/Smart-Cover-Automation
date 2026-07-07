@@ -55,13 +55,13 @@ blueprint:
             - label: Lamellenstoren
               value: lamellenstoren
 
-    weather_entity:
-      name: Wetter-Entity
-      description: Wetter-Entity für die Tagesprognose
-      default: weather.weather_at_9444
+    temperature_forecast_sensor:
+      name: Temperatursensor Tagesextrema
+      description: Sensor mit dem Attribut "Max temp"
+      default: sensor.wetter_heute_extrema
       selector:
         entity:
-          domain: weather
+          domain: sensor
 
     temperature_threshold_entity:
       name: Temperaturschwellenwert
@@ -337,12 +337,12 @@ actions:
 
           - variables:
               is_hot_today: >
-                {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
-                {% if fc | count > 0 and fc[0].get('temperature') is not none %}
-                  {{ (fc[0].get('temperature') | float(0)) >= (states(temp_threshold_var) | float(26)) }}
-                {% else %}
-                  false
-                {% endif %}
+                {{
+                  state_attr(forecast_sensor_var, 'Max temp') | float(0)
+                  >=
+                  states(temp_threshold_var) | float(26)
+                }}
+
 
               sun_matches_facade: >
                 {% if not enable_sun_condition_var %}
@@ -414,12 +414,11 @@ actions:
 
           - variables:
               is_hot_today: >
-                {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
-                {% if fc | count > 0 and fc[0].get('temperature') is not none %}
-                  {{ (fc[0].get('temperature') | float(0)) >= (states(temp_threshold_var) | float(26)) }}
-                {% else %}
-                  false
-                {% endif %}
+                {{
+                  state_attr(forecast_sensor_var, 'Max temp') | float(0)
+                  >=
+                  states(temp_threshold_var) | float(26)
+                }}
 
               sun_matches_facade: >
                 {% if not enable_sun_condition_var %}
@@ -492,12 +491,11 @@ actions:
 
           - variables:
               is_hot_today: >
-                {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
-                {% if fc | count > 0 and fc[0].get('temperature') is not none %}
-                  {{ (fc[0].get('temperature') | float(0)) >= (states(temp_threshold_var) | float(26)) }}
-                {% else %}
-                  false
-                {% endif %}
+                {{
+                  state_attr(forecast_sensor_var, 'Max temp') | float(0)
+                  >=
+                  states(temp_threshold_var) | float(26)
+                }}
 
               sun_matches_facade: >
                 {% if not enable_sun_condition_var %}
@@ -582,12 +580,11 @@ actions:
 
           - variables:
               is_hot_today: >
-                {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
-                {% if fc | count > 0 and fc[0].get('temperature') is not none %}
-                  {{ (fc[0].get('temperature') | float(0)) >= (states(temp_threshold_var) | float(26)) }}
-                {% else %}
-                  false
-                {% endif %}
+                {{
+                  state_attr(forecast_sensor_var, 'Max temp') | float(0)
+                  >=
+                  states(temp_threshold_var) | float(26)
+                }}
 
               sun_matches_facade: >
                 {% if not enable_sun_condition_var %}
@@ -725,12 +722,11 @@ actions:
 
               - variables:
                   is_hot_today: >
-                    {% set fc = wx_daily.get(weather_entity_var, {}).get('forecast', []) %}
-                    {% if fc | count > 0 and fc[0].get('temperature') is not none %}
-                      {{ (fc[0].get('temperature') | float(0)) >= (states(temp_threshold_var) | float(26)) }}
-                    {% else %}
-                      false
-                    {% endif %}
+                    {{
+                      state_attr(forecast_sensor_var, 'Max temp') | float(0)
+                      >=
+                      states(temp_threshold_var) | float(26)
+                    }}
 
                   sun_matches_facade: >
                     {% if not enable_sun_condition_var %}
