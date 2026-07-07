@@ -88,10 +88,10 @@ blueprint:
     logging_enabled:
       name: Logging aktivieren
       description: Schreibt Debug-Informationen ins Logbook
-      default: input_boolean.cover_logging
+      default: false
       selector:
         entity:
-          domain: input_boolean
+          boolean: {}
 
     sun_azimuth_min:
       name: Azimut Minimum
