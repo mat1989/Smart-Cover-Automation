@@ -63,13 +63,6 @@ blueprint:
         entity:
           domain: weather
 
-    weather_temperature_attribute:
-      name: Attribut maximale Tagestemperatur
-      description: Attribut der Wetter-Entity, z. B. "Max temp"
-      default: "Max temp"
-      selector:
-        text: {}
-
     temperature_threshold_entity:
       name: Temperaturschwellenwert
       description: input_number für "zu heiss"
