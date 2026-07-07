@@ -242,7 +242,6 @@ variables:
   cover_type_var: !input cover_type
 
   weather_entity_var: !input weather_entity
-  weather_temperature_attribute_var: !input weather_temperature_attribute
   temp_threshold_var: !input temperature_threshold_entity
 
   partial_open_var: !input partial_open_entity
