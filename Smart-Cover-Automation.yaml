@@ -54,6 +54,72 @@ blueprint:
               value: dachfenster
             - label: Lamellenstoren
               value: lamellenstoren
+              
+    window_sensor:
+      name: Optionaler Fenstersensor
+      description: Optional. Wenn gesetzt, reagiert der Blueprint auf Fenster auf/zu.
+      default: []
+      selector:
+        entity:
+          domain: binary_sensor
+          multiple: false
+    
+    close_before_midday:
+      name: Vor Mittagszeit schliessen
+      description: Wenn aktiv, wird das Cover zu Beginn der Mittagszeit geschlossen
+      default: true
+      selector:
+        boolean: {}
+
+    close_before_evening:
+      name: Vor Bettgehzeit Abend schliessen
+      description: Wenn aktiv, wird das Cover zur Bettgehzeit am Abend geschlossen
+      default: true
+      selector:
+        boolean: {}
+
+    enable_sun_condition:
+      name: Sonnenbedingung aktiv
+      description: Nur Hitzeschutz anwenden, wenn Sonne auf die Fassade scheint
+      default: true
+      selector:
+        boolean: {}
+
+    sun_azimuth_min:
+      name: Azimut Minimum
+      description: Startwinkel der Sonne in Grad
+      default: 135
+      selector:
+        number:
+          min: 0
+          max: 360
+          step: 1
+          mode: box
+          unit_of_measurement: "°"
+
+    sun_azimuth_max:
+      name: Azimut Maximum
+      description: Endwinkel der Sonne in Grad
+      default: 225
+      selector:
+        number:
+          min: 0
+          max: 360
+          step: 1
+          mode: box
+          unit_of_measurement: "°"
+
+    sun_min_elevation:
+      name: Mindesthöhe Sonne
+      description: Minimum Elevation, z. B. 10°
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 90
+          step: 1
+          mode: box
+          unit_of_measurement: "°"
 
     weather_entity:
       name: Wetter-Entity
@@ -132,72 +198,6 @@ blueprint:
       selector:
         entity:
           domain: input_datetime
-
-    close_before_midday:
-      name: Vor Mittagszeit schliessen
-      description: Wenn aktiv, wird das Cover zu Beginn der Mittagszeit geschlossen
-      default: true
-      selector:
-        boolean: {}
-
-    close_before_evening:
-      name: Vor Bettgehzeit Abend schliessen
-      description: Wenn aktiv, wird das Cover zur Bettgehzeit am Abend geschlossen
-      default: true
-      selector:
-        boolean: {}
-
-    enable_sun_condition:
-      name: Sonnenbedingung aktiv
-      description: Nur Hitzeschutz anwenden, wenn Sonne auf die Fassade scheint
-      default: true
-      selector:
-        boolean: {}
-
-    sun_azimuth_min:
-      name: Azimut Minimum
-      description: Startwinkel der Sonne in Grad
-      default: 135
-      selector:
-        number:
-          min: 0
-          max: 360
-          step: 1
-          mode: box
-          unit_of_measurement: "°"
-
-    sun_azimuth_max:
-      name: Azimut Maximum
-      description: Endwinkel der Sonne in Grad
-      default: 225
-      selector:
-        number:
-          min: 0
-          max: 360
-          step: 1
-          mode: box
-          unit_of_measurement: "°"
-
-    sun_min_elevation:
-      name: Mindesthöhe Sonne
-      description: Minimum Elevation, z. B. 10°
-      default: 10
-      selector:
-        number:
-          min: 0
-          max: 90
-          step: 1
-          mode: box
-          unit_of_measurement: "°"
-
-    window_sensor:
-      name: Optionaler Fenstersensor
-      description: Optional. Wenn gesetzt, reagiert der Blueprint auf Fenster auf/zu.
-      default: []
-      selector:
-        entity:
-          domain: binary_sensor
-          multiple: false
 
 mode: restart
 max_exceeded: silent
