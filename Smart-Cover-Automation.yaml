@@ -280,6 +280,31 @@ variables:
 
   do_not_move_var: !input do_not_move_boolean
 
+  cover_name: >
+    {{ state_attr(cover_entity_var, 'friendly_name') or cover_entity_var }}
+
+  current_position: >
+    {{ state_attr(cover_entity_var, 'current_position') }}
+
+  current_tilt_position: >
+    {{ state_attr(cover_entity_var, 'current_tilt_position') }}
+
+  current_time: >
+    {{ now().strftime('%H:%M:%S') }}
+
+  temperature_threshold: >
+    {{ states(temp_threshold_var) | float(26) }}
+
+  sun_azimuth: >
+    {{ state_attr('sun.sun', 'azimuth') | float(0) }}
+
+  sun_elevation: >
+    {{ state_attr('sun.sun', 'elevation') | float(0) }}
+
+  do_not_move_state: >
+    {{ states(do_not_move_var) }}
+
+
   # ------------------------------------------------------------
   # Wetter- und Sonnenberechnung
   # ------------------------------------------------------------
@@ -481,9 +506,6 @@ actions:
             {{ cover_name }};
             Trigger={{ trigger.id | default('manual') }};
             Simulation={{ simulation_enabled_var }};
-            CoverType={{ cover_type_var }};
-            Position={{ current_position }};
-            Tilt={{ current_tilt_position }};
             TargetAction={{ target_action }};
             MaxTemp={{ max_temp_today }};
             Threshold={{ temperature_threshold }};
@@ -497,15 +519,13 @@ actions:
             DoNotMove={{ do_not_move_state }};
             WouldMove={{ would_move }};
             Time={{ current_time }};
-            MorningWeekday={{ weekday_morning_time_var }};
-            MorningWeekend={{ weekend_morning_time_var }};
+            WeekdayMorning={{ weekday_morning_time_var }};
+            WeekendMorning={{ weekend_morning_time_var }};
             MiddayStart={{ midday_start_time_var }};
             MiddayEnd={{ midday_end_time_var }};
             EveningClose={{ evening_close_time_var }};
             PartialOpen={{ states(partial_open_var) }};
-            TiltPositionCfg={{ states(tilt_position_var) }};
-            WeatherEntity={{ weather_entity_var }};
-
+            TiltCfg={{ states(tilt_position_var) }};
  
   # ------------------------------------------------------------
   # Wenn Simulation aktiv ist: hier stoppen.
