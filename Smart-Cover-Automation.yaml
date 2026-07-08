@@ -506,7 +506,7 @@ actions:
             {{ cover_name }};
             Trigger={{ trigger.id | default('manual') }};
             Simulation={{ simulation_enabled_var }};
-            TargetAction={{ target_action }};
+            TargetAction={{ normal_target_action }};
             MaxTemp={{ max_temp_today }};
             Threshold={{ temperature_threshold }};
             HotToday={{ is_hot_today }};
