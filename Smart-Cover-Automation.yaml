@@ -506,6 +506,7 @@ actions:
             {{ cover_name }};
             Trigger={{ trigger.id | default('manual') }};
             TargetAction={{ normal_target_action }};
+            WouldMove={{ target_cover_action | trim in ['close', 'heat_protection', 'open'] }}
             MaxTemp={{ max_temp_today }};
             HotToday={{ is_hot_today }};
             SunMatches={{ sun_matches_facade }};
@@ -513,10 +514,6 @@ actions:
             SunElevation={{ sun_elevation }};
             HeatProtection={{ is_heat_protection_required }};
             DoNotMove={{ do_not_move_state }};
-            WouldMove={{ target_cover_action | trim in ['close', 'heat_protection', 'open'] }}
-            EveningClose={{ evening_close_time_var }};
-            PartialOpen={{ states(partial_open_var) }};
-            TiltCfg={{ states(tilt_position_var) }};
  
   # ------------------------------------------------------------
   # Wenn Simulation aktiv ist: hier stoppen.
