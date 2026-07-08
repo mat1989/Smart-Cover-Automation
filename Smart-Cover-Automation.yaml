@@ -270,9 +270,13 @@ variables:
   sun_azimuth_max_var: !input sun_azimuth_max
   sun_min_elevation_var: !input sun_min_elevation
 
+  do_not_move_var: !input do_not_move_boolean
+
+  # ------------------------------------------------------------
+  # Wetter- und Sonnenberechnung
+  # ------------------------------------------------------------
   max_temp_today: >
     {% set forecast = state_attr(weather_entity_var, 'forecast') %}
-
     {% if forecast and forecast | count > 0 %}
       {{ forecast[0].temperature | float(0) }}
     {% else %}
@@ -281,11 +285,10 @@ variables:
 
   is_hot_today: >
     {{
-      max_temp_today
+      max_temp_today | float(0)
       >=
       states(temp_threshold_var) | float(26)
     }}
-
 
   sun_matches_facade: >
     {% if not enable_sun_condition_var %}
@@ -314,6 +317,16 @@ variables:
       sun_matches_facade | bool(false)
     }}
 
+  normal_target_action: >
+    {% if is_heat_protection_required | bool(false) %}
+      heat_protection
+    {% else %}
+      open
+    {% endif %}
+
+  # ------------------------------------------------------------
+  # Sperrzeiten
+  # ------------------------------------------------------------
   active_morning_entity: >
     {% if now().isoweekday() in [6, 7] %}
       {{ weekend_morning_time_var }}
@@ -366,16 +379,91 @@ variables:
       is_midday_blocked | bool(false)
     }}
 
+  # ------------------------------------------------------------
+  # ZENTRALE ENTSCHEIDUNG
+  # Ergebnis ist nur noch:
+  # - close
+  # - heat_protection
+  # - open
+  # - none
+  # ------------------------------------------------------------
+  target_cover_action: >
+    {% set id = trigger.id %}
+
+    {% if id == 'morning_weekday' %}
+      {% if now().isoweekday() in [1, 2, 3, 4, 5] %}
+        {{ normal_target_action }}
+      {% else %}
+        none
+      {% endif %}
+
+    {% elif id == 'morning_weekend' %}
+      {% if now().isoweekday() in [6, 7] %}
+        {{ normal_target_action }}
+      {% else %}
+        none
+      {% endif %}
+
+    {% elif id == 'periodic_check' %}
+      {% if not (is_any_blocked_time | bool(false)) %}
+        {{ normal_target_action }}
+      {% else %}
+        none
+      {% endif %}
+
+    {% elif id == 'midday_start' %}
+      {% if close_before_midday_var | bool(false) %}
+        close
+      {% else %}
+        none
+      {% endif %}
+
+    {% elif id == 'midday_end' %}
+      {{ normal_target_action }}
+
+    {% elif id == 'evening_close' %}
+      {% if close_before_evening_var | bool(false) %}
+        close
+      {% else %}
+        none
+      {% endif %}
+
+    {% elif id == 'window_open' %}
+      {% if states(cover_entity_var) == 'closed' %}
+        heat_protection
+      {% else %}
+        none
+      {% endif %}
+
+    {% elif id == 'window_closed' %}
+      {% if is_night_blocked | bool(false) and close_before_evening_var | bool(false) %}
+        close
+      {% elif is_midday_blocked | bool(false) and close_before_midday_var | bool(false) %}
+        close
+      {% else %}
+        {{ normal_target_action }}
+      {% endif %}
+
+    {% else %}
+      none
+    {% endif %}
+
 conditions: []
 
 actions:
+  # ------------------------------------------------------------
+  # Globaler Bewegungsstopp
+  # ------------------------------------------------------------
   - condition: state
     entity_id: !input do_not_move_boolean
     state: "off"
+
+  # ------------------------------------------------------------
+  # Logging der Entscheidungsbasis
+  # ------------------------------------------------------------
   - if:
-      - condition: state
-        entity_id: !input logging_enabled
-        state: "on"
+      - condition: template
+        value_template: "{{ logging_enabled_var | bool(false) }}"
     then:
       - action: logbook.log
         data:
@@ -383,6 +471,7 @@ actions:
           entity_id: !input cover_entity
           message: >
             Trigger={{ trigger.id }};
+            TargetAction={{ target_cover_action | trim }};
             CoverType={{ cover_type_var }};
             MaxTemp={{ max_temp_today }};
             Threshold={{ states(temp_threshold_var) }};
@@ -391,202 +480,25 @@ actions:
             HeatProtection={{ is_heat_protection_required }};
             NightBlocked={{ is_night_blocked }};
             MiddayBlocked={{ is_midday_blocked }};
-            DoNotMove={{ states(do_not_move_boolean) }}
+            DoNotMove={{ states(do_not_move_var) }}
 
+  # ------------------------------------------------------------
+  # NUR NOCH 3 FACHLICHE AUSFÜHRUNGSFÄLLE
+  # ------------------------------------------------------------
   - choose:
-      # ------------------------------------------------------------
-      # MORGENS WERKTAGS
-      # ------------------------------------------------------------
+      # Fall 1: Schliessen
       - conditions:
-          - condition: trigger
-            id: morning_weekday
           - condition: template
-            value_template: "{{ now().isoweekday() in [1, 2, 3, 4, 5] }}"
-        sequence:
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ is_heat_protection_required | bool(false) }}"
-                sequence:
-                  - choose:
-                      - conditions:
-                          - condition: template
-                            value_template: "{{ cover_type_var == 'dachfenster' }}"
-                        sequence:
-                          - action: cover.set_cover_position
-                            target:
-                              entity_id: !input cover_entity
-                            data:
-                              position: "{{ states(partial_open_var) | int(25) }}"
-
-                      - conditions:
-                          - condition: template
-                            value_template: "{{ cover_type_var == 'lamellenstoren' }}"
-                        sequence:
-                          - action: cover.set_cover_tilt_position
-                            target:
-                              entity_id: !input cover_entity
-                            data:
-                              tilt_position: "{{ states(tilt_position_var) | int(50) }}"
-            default:
-              - action: cover.open_cover
-                target:
-                  entity_id: !input cover_entity
-
-      # ------------------------------------------------------------
-      # MORGENS WOCHENENDE
-      # ------------------------------------------------------------
-      - conditions:
-          - condition: trigger
-            id: morning_weekend
-          - condition: template
-            value_template: "{{ now().isoweekday() in [6, 7] }}"
-        sequence:
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ is_heat_protection_required | bool(false) }}"
-                sequence:
-                  - choose:
-                      - conditions:
-                          - condition: template
-                            value_template: "{{ cover_type_var == 'dachfenster' }}"
-                        sequence:
-                          - action: cover.set_cover_position
-                            target:
-                              entity_id: !input cover_entity
-                            data:
-                              position: "{{ states(partial_open_var) | int(25) }}"
-
-                      - conditions:
-                          - condition: template
-                            value_template: "{{ cover_type_var == 'lamellenstoren' }}"
-                        sequence:
-                          - action: cover.set_cover_tilt_position
-                            target:
-                              entity_id: !input cover_entity
-                            data:
-                              tilt_position: "{{ states(tilt_position_var) | int(50) }}"
-            default:
-              - action: cover.open_cover
-                target:
-                  entity_id: !input cover_entity
-
-      # ------------------------------------------------------------
-      # PERIODISCHE SOLLZUSTANDSPRÜFUNG
-      # Alle 15 Minuten, aber nur ausserhalb der Sperrzeiten
-      # ------------------------------------------------------------
-      - conditions:
-          - condition: trigger
-            id: periodic_check
-          - condition: template
-            value_template: "{{ not (is_any_blocked_time | bool(false)) }}"
-        sequence:
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ is_heat_protection_required | bool(false) }}"
-                sequence:
-                  - choose:
-                      - conditions:
-                          - condition: template
-                            value_template: "{{ cover_type_var == 'dachfenster' }}"
-                        sequence:
-                          - action: cover.set_cover_position
-                            target:
-                              entity_id: !input cover_entity
-                            data:
-                              position: "{{ states(partial_open_var) | int(25) }}"
-
-                      - conditions:
-                          - condition: template
-                            value_template: "{{ cover_type_var == 'lamellenstoren' }}"
-                        sequence:
-                          - action: cover.set_cover_tilt_position
-                            target:
-                              entity_id: !input cover_entity
-                            data:
-                              tilt_position: "{{ states(tilt_position_var) | int(50) }}"
-            default:
-              - action: cover.open_cover
-                target:
-                  entity_id: !input cover_entity
-
-      # ------------------------------------------------------------
-      # MITTAG START
-      # Optional vor Mittagszeit schliessen
-      # ------------------------------------------------------------
-      - conditions:
-          - condition: trigger
-            id: midday_start
-          - condition: template
-            value_template: "{{ close_before_midday_var }}"
+            value_template: "{{ target_cover_action | trim == 'close' }}"
         sequence:
           - action: cover.close_cover
             target:
               entity_id: !input cover_entity
 
-      # ------------------------------------------------------------
-      # MITTAG ENDE
-      # Sperrzeit endet, Sollzustand wird neu gesetzt
-      # ------------------------------------------------------------
+      # Fall 2: Hitzeschutz / Lüftungsstellung
       - conditions:
-          - condition: trigger
-            id: midday_end
-        sequence:
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ is_heat_protection_required | bool(false) }}"
-                sequence:
-                  - choose:
-                      - conditions:
-                          - condition: template
-                            value_template: "{{ cover_type_var == 'dachfenster' }}"
-                        sequence:
-                          - action: cover.set_cover_position
-                            target:
-                              entity_id: !input cover_entity
-                            data:
-                              position: "{{ states(partial_open_var) | int(25) }}"
-
-                      - conditions:
-                          - condition: template
-                            value_template: "{{ cover_type_var == 'lamellenstoren' }}"
-                        sequence:
-                          - action: cover.set_cover_tilt_position
-                            target:
-                              entity_id: !input cover_entity
-                            data:
-                              tilt_position: "{{ states(tilt_position_var) | int(50) }}"
-            default:
-              - action: cover.open_cover
-                target:
-                  entity_id: !input cover_entity
-
-      # ------------------------------------------------------------
-      # ABEND
-      # Optional vor Bettgehzeit schliessen
-      # ------------------------------------------------------------
-      - conditions:
-          - condition: trigger
-            id: evening_close
           - condition: template
-            value_template: "{{ close_before_evening_var }}"
-        sequence:
-          - action: cover.close_cover
-            target:
-              entity_id: !input cover_entity
-
-      # ------------------------------------------------------------
-      # FENSTER GEÖFFNET
-      # Wenn Cover geschlossen ist, dann Teilöffnung/Kippstellung
-      # ------------------------------------------------------------
-      - conditions:
-          - condition: trigger
-            id: window_open
-          - condition: template
-            value_template: "{{ states(cover_entity_var) == 'closed' }}"
+            value_template: "{{ target_cover_action | trim == 'heat_protection' }}"
         sequence:
           - choose:
               - conditions:
@@ -609,73 +521,11 @@ actions:
                     data:
                       tilt_position: "{{ states(tilt_position_var) | int(50) }}"
 
-      # ------------------------------------------------------------
-      # FENSTER GESCHLOSSEN
-      # Danach Sollzustand neu ermitteln
-      # Sperrzeiten werden berücksichtigt
-      # ------------------------------------------------------------
+      # Fall 3: Öffnen
       - conditions:
-          - condition: trigger
-            id: window_closed
+          - condition: template
+            value_template: "{{ target_cover_action | trim == 'open' }}"
         sequence:
-          - choose:
-              # Nacht-Sperrzeit und Abend-Schliessen aktiv:
-              # Cover wieder schliessen
-              - conditions:
-                  - condition: template
-                    value_template: >
-                      {{
-                        is_night_blocked | bool(false)
-                        and
-                        close_before_evening_var
-                      }}
-                sequence:
-                  - action: cover.close_cover
-                    target:
-                      entity_id: !input cover_entity
-
-              # Mittags-Sperrzeit und Mittag-Schliessen aktiv:
-              # Cover wieder schliessen
-              - conditions:
-                  - condition: template
-                    value_template: >
-                      {{
-                        is_midday_blocked | bool(false)
-                        and
-                        close_before_midday_var
-                      }}
-                sequence:
-                  - action: cover.close_cover
-                    target:
-                      entity_id: !input cover_entity
-
-            default:
-              - choose:
-                  - conditions:
-                      - condition: template
-                        value_template: "{{ is_heat_protection_required | bool(false) }}"
-                    sequence:
-                      - choose:
-                          - conditions:
-                              - condition: template
-                                value_template: "{{ cover_type_var == 'dachfenster' }}"
-                            sequence:
-                              - action: cover.set_cover_position
-                                target:
-                                  entity_id: !input cover_entity
-                                data:
-                                  position: "{{ states(partial_open_var) | int(25) }}"
-
-                          - conditions:
-                              - condition: template
-                                value_template: "{{ cover_type_var == 'lamellenstoren' }}"
-                            sequence:
-                              - action: cover.set_cover_tilt_position
-                                target:
-                                  entity_id: !input cover_entity
-                                data:
-                                  tilt_position: "{{ states(tilt_position_var) | int(50) }}"
-                default:
-                  - action: cover.open_cover
-                    target:
-                      entity_id: !input cover_entity
+          - action: cover.open_cover
+            target:
+              entity_id: !input cover_entity
