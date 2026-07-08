@@ -505,24 +505,15 @@ actions:
           message: >
             {{ cover_name }};
             Trigger={{ trigger.id | default('manual') }};
-            Simulation={{ simulation_enabled_var }};
             TargetAction={{ normal_target_action }};
             MaxTemp={{ max_temp_today }};
-            Threshold={{ temperature_threshold }};
             HotToday={{ is_hot_today }};
             SunMatches={{ sun_matches_facade }};
             SunAzimuth={{ sun_azimuth }};
             SunElevation={{ sun_elevation }};
-            NightBlocked={{ is_night_blocked }};
-            MiddayBlocked={{ is_midday_blocked }};
             HeatProtection={{ is_heat_protection_required }};
             DoNotMove={{ do_not_move_state }};
             WouldMove={{ target_cover_action | trim in ['close', 'heat_protection', 'open'] }}
-            Time={{ current_time }};
-            WeekdayMorning={{ weekday_morning_time_var }};
-            WeekendMorning={{ weekend_morning_time_var }};
-            MiddayStart={{ midday_start_time_var }};
-            MiddayEnd={{ midday_end_time_var }};
             EveningClose={{ evening_close_time_var }};
             PartialOpen={{ states(partial_open_var) }};
             TiltCfg={{ states(tilt_position_var) }};
