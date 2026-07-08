@@ -92,6 +92,13 @@ blueprint:
       selector:
         boolean: {}
 
+    simulation_enabled:
+      name: Simulation aktivieren
+      description: Es werden keine Aktoren bewegt
+      default: false
+      selector:
+        boolean: {}
+
     sun_azimuth_min:
       name: Azimut Minimum
       description: Startwinkel der Sonne in Grad
@@ -249,6 +256,7 @@ variables:
   cover_type_var: !input cover_type
 
   logging_enabled_var: !input logging_enabled
+  simulation_enabled_var: !input simulation_enabled
 
   weather_entity_var: !input weather_entity
   temp_threshold_var: !input temperature_threshold_entity
@@ -463,7 +471,7 @@ actions:
   # ------------------------------------------------------------
   - if:
       - condition: template
-        value_template: "{{ logging_enabled_var | bool(false) }}"
+        value_template: "{{ logging_enabled_var | bool(false) or simulation_enabled_var | bool(false) }}"
     then:
       - action: logbook.log
         data:
@@ -471,6 +479,7 @@ actions:
           entity_id: !input cover_entity
           message: >
             Trigger={{ trigger.id }};
+            Simulation={{ simulation_enabled_var }};
             TargetAction={{ target_cover_action | trim }};
             CoverType={{ cover_type_var }};
             MaxTemp={{ max_temp_today }};
@@ -480,7 +489,16 @@ actions:
             HeatProtection={{ is_heat_protection_required }};
             NightBlocked={{ is_night_blocked }};
             MiddayBlocked={{ is_midday_blocked }};
-            DoNotMove={{ states(do_not_move_var) }}
+            DoNotMove={{ states(do_not_move_var) }};
+            WouldMove={{ target_cover_action | trim in ['close', 'heat_protection', 'open'] }}
+
+ 
+  # ------------------------------------------------------------
+  # Wenn Simulation aktiv ist: hier stoppen.
+  # Bis hierhin wurde geloggt, aber keine Aktoren werden bewegt.
+  # ------------------------------------------------------------
+  - condition: template
+    value_template: "{{ not (simulation_enabled_var | bool(false)) }}"
 
   # ------------------------------------------------------------
   # NUR NOCH 3 FACHLICHE AUSFÜHRUNGSFÄLLE
