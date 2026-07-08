@@ -288,7 +288,7 @@ variables:
     {% if forecast and forecast | count > 0 %}
       {{ forecast[0].temperature | float(0) }}
     {% else %}
-      0
+      {{ state_attr('sensor.wetter_heute_extrema', 'max_temp') | float(0) }}
     {% endif %}
 
   is_hot_today: >
