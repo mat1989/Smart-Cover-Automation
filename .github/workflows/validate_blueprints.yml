@@ -1,7 +1,10 @@
-name: Validate Home Assistant Blueprints
+name: Validate Blueprint
 
 on:
   push:
+    branches:
+      - main
+      - master
   pull_request:
 
 jobs:
@@ -9,22 +12,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
           pip install yamllint pyyaml
 
-      - name: YAML lint
+      - name: Validate YAML Syntax
         run: |
-          yamllint blueprints/
+          yamllint .
 
-      - name: Validate blueprint structure
+      - name: Validate Home Assistant Blueprint
         run: |
-          python scripts/validate_blueprints.py
+          python .github/scripts/validate_blueprint.py
