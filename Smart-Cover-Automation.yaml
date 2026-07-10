@@ -11,7 +11,7 @@ blueprint:
     - Sperrzeit Mittag: von Bettgehzeit Mittag Start bis Bettgehzeit Mittag Ende
     - alle 15 Minuten Sollzustandsprüfung ausserhalb der Sperrzeiten
     - optionalem Fenstersensor
-    - globalem "do not move"-Schalter
+    - globalem "do not move"-Schalter 
 
     Verhalten:
 
