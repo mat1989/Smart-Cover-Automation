@@ -1,32 +1,70 @@
 from pathlib import Path
+import sys
 import yaml
 
-class IgnoreUnknownLoader(yaml.SafeLoader):
+BLUEPRINTS = list(Path(".").rglob("*.yaml"))
+
+class BlueprintLoader(yaml.SafeLoader):
     pass
 
-IgnoreUnknownLoader.add_constructor(
+BlueprintLoader.add_constructor(
     "!input",
     lambda loader, node: loader.construct_scalar(node)
 )
 
 errors = []
 
-for file in Path("blueprints").rglob("*.yaml"):
+for file in BLUEPRINTS:
+
+    if ".github" in str(file):
+        continue
+
     try:
-        with ope*(file, "r", encoding="utf-8") as f*
-            data = yaml.load*f, Loader=IgnoreUnknownLoader)
+        with open(file, encoding="utf-8") as f:
+            content = yaml.load(f, Loader=BlueprintLoader)
 
-*       if "blueprint" not in data:*            errors.append(f"{file}* Missing blueprint section")
+        if not isinstance(content, dict):
+            errors.append(f"{file}: Invalid root structure")
+            continue
 
-    *   bp = data.get("blueprint", {})
-*        for required in ["name", "domain"]:
-            if required n*t in bp:
-                errors.ap*end(f"{file}: Missing {required}")*
+        if "blueprint" not in content:
+            continue
+
+        bp = content["blueprint"]
+
+        required = [
+            "name",
+            "description",
+            "domain"
+        ]
+
+        for field in required:
+            if field not in bp:
+                errors.append(
+                    f"{file}: Missing blueprint.{field}"
+                )
+
+        inputs = content.get("input", {})
+
+        for name, cfg in inputs.items():
+            if not isinstance(cfg, dict):
+                continue
+
+            if "name" not in cfg:
+                errors.append(
+                    f"{file}: Input '{name}' missing name"
+                )
+
+            if "selector" not in cfg:
+                errors.append(
+                    f"{file}: Input '{name}' missing selector"
+                )
+
     except Exception as e:
-      * errors.append(f"{file}: {e}")
+        errors.append(f"{file}: {e}")
 
-if*errors:
-    print("\n".join(errors*)
-    raise SystemExit(1)
+if errors:
+    print("\n".join(errors))
+    sys.exit(1)
 
-print("*ll blueprints validated successful*y.")
+print("Blueprint validation successful.")
