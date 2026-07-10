@@ -506,6 +506,7 @@ actions:
             {{ cover_name }};
             Trigger={{ trigger.id | default('manual') }};
             TargetAction={{ normal_target_action }};
+            TargetCoverAction = {{target_cover_action}};
             WouldMove={{ target_cover_action | trim in ['close', 'heat_protection', 'open'] }}
             MaxTemp={{ max_temp_today }};
             HotToday={{ is_hot_today }};
