@@ -514,7 +514,6 @@ actions:
             SunAzimuth={{ sun_azimuth }};
             SunElevation={{ sun_elevation }};
             HeatProtection={{ is_heat_protection_required }};
-            DoNotMove={{ do_not_move_state }};
  
   # ------------------------------------------------------------
   # Wenn Simulation aktiv ist: hier stoppen.
