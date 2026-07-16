@@ -35,6 +35,9 @@ blueprint:
   homeassistant:
     min_version: 2026.7.0
 
+# ------------------------------------------------------------
+# Inputs
+# ------------------------------------------------------------
   input:
     cover_entity:
       name: Cover
@@ -216,6 +219,10 @@ blueprint:
 mode: restart
 max_exceeded: silent
 
+
+# ------------------------------------------------------------
+# Trigger
+# ------------------------------------------------------------
 triggers:
   - trigger: time
     at: !input weekday_morning_time
@@ -251,6 +258,9 @@ triggers:
     to: "off"
     id: window_closed
 
+# ------------------------------------------------------------
+# Variabeln
+# ------------------------------------------------------------
 variables:
   cover_entity_var: !input cover_entity
   cover_type_var: !input cover_type
