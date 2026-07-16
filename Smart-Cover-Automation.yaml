@@ -503,7 +503,7 @@ target_position: >
       none
     {% endif %}
 
-  target_tilt_position: >
+target_tilt_position: >
     {% set action = target_cover_action | trim %}
     {% if action == 'heat_protection' and cover_type_var == 'lamellenstoren' %}
       {{ states(tilt_position_var) | int(50) }}
@@ -511,7 +511,7 @@ target_position: >
       none
     {% endif %}
 
-  is_cover_already_at_target: >
+is_cover_already_at_target: >
     {% set action = target_cover_action | trim %}
     {% set pos = state_attr(cover_entity_var, 'current_position') %}
     {% set tilt = state_attr(cover_entity_var, 'current_tilt_position') %}
