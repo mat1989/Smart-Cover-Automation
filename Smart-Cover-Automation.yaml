@@ -147,12 +147,20 @@ blueprint:
           domain: weather
 
     temperature_threshold_entity:
-      name: Temperaturschwellenwert
+      name: Temperaturschwellenwert Heiss
       description: input_number für "zu heiss"
       default: input_number.cover_temperatur_schwellenwert
       selector:
         entity:
           domain: input_number
+
+    temperature_threshold_entity_cold:
+      name: Temperaturschwellenwert Kalt
+      description: input_number für "zu kalt"
+      default: input_number.cover_temperatur_schwellenwert_low
+      selector:
+        entity:
+          domain: input_number  
 
     do_not_move_boolean:
       name: Do not move
