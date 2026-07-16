@@ -481,6 +481,54 @@ variables:
       none
     {% endif %}
 
+target_position: >
+    {% set action = target_cover_action | trim %}
+    {% if action == 'close' %}
+      0
+    {% elif action == 'open' %}
+      100
+    {% elif action == 'heat_protection' and cover_type_var == 'dachfenster' %}
+      {{ states(partial_open_var) | int(25) }}
+    {% else %}
+      none
+    {% endif %}
+
+  target_tilt_position: >
+    {% set action = target_cover_action | trim %}
+    {% if action == 'heat_protection' and cover_type_var == 'lamellenstoren' %}
+      {{ states(tilt_position_var) | int(50) }}
+    {% else %}
+      none
+    {% endif %}
+
+  is_cover_already_at_target: >
+    {% set action = target_cover_action | trim %}
+    {% set pos = state_attr(cover_entity_var, 'current_position') %}
+    {% set tilt = state_attr(cover_entity_var, 'current_tilt_position') %}
+    {% set state = states(cover_entity_var) %}
+
+    {% if action == 'none' %}
+      true
+
+    {% elif action == 'close' %}
+      {{ state == 'closed' or (pos is not none and (pos | int(0)) <= 1) }}
+
+    {% elif action == 'open' %}
+      {{ (pos is not none and (pos | int(0)) >= 99) or (pos is none and state == 'open') }}
+
+    {% elif action == 'heat_protection' and cover_type_var == 'dachfenster' %}
+      {% set target = states(partial_open_var) | int(25) %}
+      {{ pos is not none and ((pos | int(0)) - target) | abs <= 1 }}
+
+    {% elif action == 'heat_protection' and cover_type_var == 'lamellenstoren' %}
+      {% set target = states(tilt_position_var) | int(50) %}
+      {{ tilt is not none and ((tilt | int(0)) - target) | abs <= 1 }}
+
+    {% else %}
+      false
+    {% endif %}
+
+
 conditions: []
 
 actions:
@@ -520,6 +568,17 @@ actions:
   # ------------------------------------------------------------
   - condition: template
     value_template: "{{ not (simulation_enabled_var | bool(false)) }}"
+
+
+ ------------------------------------------------------------
+  # Dachfenster verzögert ausführen
+  # ------------------------------------------------------------
+  - if:
+      - condition: template
+        value_template: "{{ cover_type_var == 'dachfenster' }}"
+    then:
+      - delay:
+          seconds: 10
 
   # ------------------------------------------------------------
   # NUR NOCH 3 FACHLICHE AUSFÜHRUNGSFÄLLE
