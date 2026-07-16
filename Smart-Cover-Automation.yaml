@@ -278,6 +278,7 @@ variables:
 
   weather_entity_var: !input weather_entity
   temp_threshold_var: !input temperature_threshold_entity
+  temp_threshold_cold_car: !input temperature_threshold_entity_cold
 
   partial_open_var: !input partial_open_entity
   tilt_position_var: !input tilt_position_entity
