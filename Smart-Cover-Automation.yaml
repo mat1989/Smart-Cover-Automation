@@ -589,6 +589,12 @@ actions:
   - condition: template
     value_template: "{{ not (simulation_enabled_var | bool(false)) }}"
 
+  # ------------------------------------------------------------
+  # Wenn ein Cover bereits auf der Targetposition ist, wird nicht unternommen.
+  # ------------------------------------------------------------
+  - condition: template
+    value_template: "{{ not (is_cover_already_at_target | bool(false)) }}"
+
 
   #------------------------------------------------------------
   # Dachfenster verzögert ausführen
