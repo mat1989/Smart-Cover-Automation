@@ -573,10 +573,11 @@ actions:
             {{ cover_name }};
             Trigger={{ trigger.id | default('manual') }};
             TargetAction={{ normal_target_action }};
-            TargetCoverAction = {{target_cover_action}};
-            CurrPos= {{current_position}};
-            CurrTilt= {{current_tilt_position}};
-            BlockedTime= {{is_any_blocked_time}};
+            TargetCoverAction ={{target_cover_action}};
+            AlreadyAtTarget={{is_cover_already_at_target}};
+            CurrPos={{current_position}};
+            CurrTilt={{current_tilt_position}};
+            BlockedTime={{is_any_blocked_time}};
             HotToday={{ is_hot_today }};
             SunMatches={{ sun_matches_facade }};
             HeatProtection={{ is_heat_protection_required }};
