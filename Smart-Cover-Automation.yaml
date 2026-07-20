@@ -323,18 +323,6 @@ variables:
   do_not_move_state: >
     {{ states(do_not_move_var) }}
 
-# ------------------------------------------------------------
-# 2. Dynamisches Icon basierend auf der Priorität (Simulation > Logging > Default)
-# ------------------------------------------------------------
-icon: >-
-  {% if is_state(simulation_enabled_var, 'on') %}
-    mdi:alert-circle
-  {% elif is_state(logging_enabled_var, 'on') %}
-    mdi:alpha-l-circle
-  {% else %}
-    mdi:robot
-  {% endif %}
-
 
   # ------------------------------------------------------------
   # Wetter- und Sonnenberechnung
