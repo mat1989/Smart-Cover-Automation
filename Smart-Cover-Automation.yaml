@@ -74,12 +74,28 @@ blueprint:
       selector:
         boolean: {}
 
-    close_before_evening:
-      name: Vor Bettgehzeit Abend schliessen
-      description: Wenn aktiv, wird das Cover zur Bettgehzeit am Abend geschlossen
-      default: true
+#    close_before_evening:
+#      name: Vor Bettgehzeit Abend schliessen
+#      description: Wenn aktiv, wird das Cover zur Bettgehzeit am Abend geschlossen
+#      default: true
+#      selector:
+#        boolean: {}
+
+    close_evening_mode:
+      name: Schliessmodus am Abend
+      description: Wähle aus, wann das Cover am Abend schliessen soll.
+      default: sunset
       selector:
-        boolean: {}
+        select:
+          options:
+            - label: "Aus"
+              value: "off"
+            - label: "Zur Bettgehzeit"
+              value: "bettgehtzeit"
+            - label: "Bei Sonnenuntergang"
+              value: "sunset"
+          mode: list
+
 
     enable_sun_condition:
       name: Sonnenbedingung aktiv
@@ -256,6 +272,10 @@ triggers:
     at: !input evening_close_time
     id: evening_close
 
+  - trigger: sun
+    event: sunset
+    id: sunset
+
   - trigger: state
     entity_id: !input window_sensor
     to: "on"
@@ -290,7 +310,9 @@ variables:
   evening_close_time_var: !input evening_close_time
 
   close_before_midday_var: !input close_before_midday
-  close_before_evening_var: !input close_before_evening
+  close_evening_mode_var: !input close_evening_mode
+ # close_before_evening_var: !input close_before_evening
+ 
 
   enable_sun_condition_var: !input enable_sun_condition
   sun_azimuth_min_var: !input sun_azimuth_min
@@ -388,16 +410,26 @@ variables:
 
   is_night_blocked: >
     {% set now_time = now() %}
-    {% set evening_raw = states(evening_close_time_var) %}
     {% set morning_raw = states(active_morning_entity | trim) %}
+    
+    {# Bestimme die dynamische Abend-Startzeit basierend auf dem Radio-Button #}
+    {% set evening = none %}
+    {% if close_evening_mode_var == 'sunset' %}
+      {% set evening = state_attr('sun.sun', 'next_setting') | as_datetime | local_time %}
+    {% elif close_evening_mode_var == 'bettgehtzeit' %}
+      {% set evening_raw = states(evening_close_time_var) %}
+      {% if evening_raw not in ['unknown', 'unavailable', '', none] %}
+        {% set evening = today_at(evening_raw) %}
+      {% endif %}
+    {% endif %}
 
-    {% if evening_raw in ['unknown', 'unavailable', '', none]
-          or morning_raw in ['unknown', 'unavailable', '', none] %}
+    {# Fehlerprüfung für Morgen- und Abendzeit #}
+    {% if evening is none or morning_raw in ['unknown', 'unavailable', '', none] %}
       false
     {% else %}
-      {% set evening = today_at(evening_raw) %}
       {% set morning = today_at(morning_raw) %}
 
+      {# Da Sonnenuntergang nach Mitternacht wechseln kann, nutzen wir den exakten Zeitabgleich #}
       {% if evening <= morning %}
         {{ now_time >= evening and now_time < morning }}
       {% else %}
@@ -474,7 +506,14 @@ variables:
       {{ normal_target_action }}
 
     {% elif id == 'evening_close' %}
-      {% if close_before_evening_var | bool(false) %}
+      {% if close_evening_mode_var == 'bettgehtzeit' %}
+        close
+      {% else %}
+        none
+      {% endif %}
+
+    {% elif id == 'sunset' %}
+      {% if close_evening_mode_var == 'sunset' %}
         close
       {% else %}
         none
@@ -488,7 +527,7 @@ variables:
       {% endif %}
 
     {% elif id == 'window_closed' %}
-      {% if is_night_blocked | bool(false) and close_before_evening_var | bool(false) %}
+      {% if is_night_blocked | bool(false) and close_evening_mode_var == 'bettgehtzeit' %}
         close
       {% elif is_midday_blocked | bool(false) and close_before_midday_var | bool(false) %}
         close
