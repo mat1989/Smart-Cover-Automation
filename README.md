@@ -1,304 +1,492 @@
 # Smart-Cover-Automation
 
-Home Assistant Blueprint zur intelligenten Steuerung von Dachfenstern und Lamellenstoren basierend auf Wetter, Temperatur, Sonnenstand, Zeitplänen und optionalen Fenstersensoren.
+Eine universelle Home-Assistant-Automation zur intelligenten Steuerung von **Dachfenstern** und **Lamellenstoren** basierend auf:
 
-## Features
+- Wetterprognose
+- Sonnenstand (Azimut / Elevation)
+- Tageszeit
+- Fenstersensoren
+- Benutzerdefinierten Sperrzeiten
+- Simulations- und Loggingmodus
+
+Der Blueprint optimiert automatisch den Sonnenschutz und die Lüftung, ohne unnötige Fahrbewegungen auszuführen.
+
+---
+
+# Features
 
 ✅ Unterstützung für Dachfenster und Lamellenstoren
 
-✅ Automatische Hitzeschutzfunktion
+✅ Temperaturabhängiger Hitzeschutz
 
-✅ Berücksichtigung der maximalen Tagestemperatur
+✅ Sonnenstandsabhängiger Sonnenschutz
 
-✅ Optionale Sonnenstandserkennung (Azimut + Elevation)
+✅ Werktag-/Wochenend-Morgentrigger
 
-✅ Separate Morgentrigger für Werktage und Wochenende
+✅ Mittagssperrzeit
 
-✅ Nacht-Sperrzeit
+✅ Nachtsperrzeit
 
-✅ Mittags-Sperrzeit
-
-✅ Sollzustandsprüfung alle 15 Minuten
+✅ Schliessen bei Sonnenuntergang oder Bettgehzeit
 
 ✅ Optionaler Fenstersensor
 
-✅ Globaler "Do Not Move"-Schalter
+✅ Do-Not-Move-Schalter
 
-✅ Konfigurierbare Teilöffnung und Kippstellung
+✅ Simulationsmodus
+
+✅ Ausführliches Logging
+
+✅ Verhindert unnötige Fahrbewegungen
 
 ---
 
-## Unterstützte Cover-Typen
+# Funktionsweise
+
+Die Automation entscheidet zwischen vier Zuständen:
+
+| Zustand | Bedeutung |
+|----------|------------|
+| `close` | Cover schliessen |
+| `open` | Cover vollständig öffnen |
+| `heat_protection` | Hitzeschutzstellung |
+| `none` | Keine Aktion |
+
+---
+
+# Entscheidungslogik
+
+```text
+                       Trigger
+                          │
+                          ▼
+
+                   Do Not Move?
+                          │
+             JA ──────────┴─────────► STOP
+
+                          │ NEIN
+                          ▼
+
+                 Sperrzeit aktiv?
+                          │
+              JA ─────────┴────────► Keine Aktion
+
+                          │ NEIN
+                          ▼
+
+                   Heisser Tag?
+                          │
+             NEIN ────────┴────────► Öffnen
+
+                          │ JA
+                          ▼
+
+                 Sonne auf Fassade?
+                          │
+             NEIN ────────┴────────► Öffnen
+
+                          │ JA
+                          ▼
+
+                    Hitzeschutz
+```
+
+---
+
+# Wetterauswertung
+
+Die Tages-Maximaltemperatur wird aus der Wettervorhersage ermittelt.
+
+```text
+MaxTemp Heute >= Temperatur-Schwelle
+```
+
+Beispiel:
+
+```text
+MaxTemp Heute = 27°C
+Schwellenwert = 23°C
+
+27 >= 23
+
+→ Heisser Tag
+```
+
+---
+
+# Sonnenstandsprüfung
+
+Zusätzlich kann geprüft werden, ob die Sonne überhaupt auf die entsprechende Fassade scheint.
+
+## Azimut
+
+```text
+0°   = Norden
+90°  = Osten
+180° = Süden
+270° = Westen
+```
+
+Beispiel:
+
+```text
+Azimut Minimum = 135°
+Azimut Maximum = 225°
+```
+
+Aktiver Bereich:
+
+```text
+                  N
+                 0°
+
+ W 270° ◄────────┼────────► 90° O
+
+                 ▼
+               180°
+                S
+```
+
+```text
+135° ─────────────────── 225°
+       Sonne auf Fassade
+```
+
+Zusätzlich muss die Sonne höher als die minimale Elevation stehen.
+
+---
+
+# Verhalten bei Hitzeschutz
+
+## Dachfenster
+
+Das Dachfenster fährt auf eine definierte Teilöffnung.
+
+Beispiel:
+
+```text
+Teilöffnung = 20 %
+```
+
+```text
+┌─────────────┐
+│             │
+│             │
+└─────╱───────┘
+      20 %
+```
+
+---
+
+## Lamellenstoren
+
+Die Storen bleiben unten und werden auf die konfigurierte Kippstellung gesetzt.
+
+Beispiel:
+
+```text
+Kippstellung = 50 %
+```
+
+```text
+/////
+\\\\\
+/////
+```
+
+---
+
+# Tagesablauf
+
+## Morgens
+
+Zur definierten Öffnungszeit:
+
+- Werktags
+- Wochenende
+
+wird die Tagesprognose bewertet.
+
+```text
+07:15 Werktags
+07:30 Wochenende
+```
+
+Anschliessend wird entschieden:
+
+```text
+Öffnen
+oder
+Hitzeschutz
+```
+
+---
+
+## Regelmässige Prüfung
+
+Alle 15 Minuten erfolgt eine Neubewertung.
+
+```text
+00
+15
+30
+45
+```
+
+Beispiel:
+
+```text
+08:00
+08:15
+08:30
+08:45
+```
+
+Dadurch kann die Automation auf veränderte Wetterbedingungen reagieren.
+
+---
+
+# Mittagssperrzeit
+
+Während der Mittagssperrzeit werden keine automatischen Anpassungen vorgenommen.
+
+Beispiel:
+
+```text
+11:50 ────────────────── 14:15
+       Mittagsblock
+```
+
+Optional kann das Cover zu Beginn geschlossen werden.
+
+```text
+11:50
+  ▼
+Schliessen
+```
+
+Nach Ende der Sperrzeit wird die normale Logik wieder aktiviert.
+
+---
+
+# Nachtsperrzeit
+
+Zwischen Abend und Morgen werden automatische Bewegungen unterdrückt.
+
+```text
+18:40 ────────────────── 07:15
+        Nachtblock
+```
+
+Dies verhindert unerwartete Bewegungen während der Nacht.
+
+---
+
+# Abendverhalten
+
+Es stehen drei Modi zur Verfügung:
+
+| Modus | Verhalten |
+|---------|------------|
+| Aus | Keine Aktion |
+| Bettgehzeit | Schliessen zur definierten Uhrzeit |
+| Sonnenuntergang | Schliessen bei Sunset |
+
+---
+
+## Bettgehzeit
+
+```text
+18:40
+  ▼
+Schliessen
+```
+
+---
+
+## Sonnenuntergang
+
+```text
+Sunset
+  ▼
+Schliessen
+```
+
+---
+
+# Fenstersensor
+
+Optional kann ein Fenstersensor eingebunden werden.
+
+## Fenster geöffnet
+
+Wenn das Cover geschlossen ist:
+
+```text
+Fenster auf
+      │
+      ▼
+Cover geschlossen
+      │
+      ▼
+Hitzeschutzstellung
+```
 
 ### Dachfenster
 
-Bei aktivem Hitzeschutz wird das Fenster auf eine definierte Teilöffnung gefahren.
+```text
+geschlossen
+     ▼
+20 % öffnen
+```
 
 ### Lamellenstoren
 
-Bei aktivem Hitzeschutz werden die Lamellen auf eine definierte Kippstellung gesetzt.
+```text
+geschlossen
+     ▼
+50 % Kippstellung
+```
 
 ---
 
-## Entscheidungslogik
+## Fenster geschlossen
 
-### Hitzeschutz aktiv
-
-Der Hitzeschutz wird aktiviert wenn:
+Beim Schliessen des Fensters wird die gesamte Logik neu berechnet.
 
 ```text
-Maximale Tagestemperatur >= Temperaturschwellenwert
+Temperatur
++
+Sonne
++
+Sperrzeiten
++
+Abendmodus
 ```
 
-und optional:
+---
+
+# Do Not Move
+
+Globale Sperre für sämtliche Bewegungen.
 
 ```text
-Die Sonne befindet sich im definierten Azimut- und Elevationsbereich.
+Do Not Move = EIN
 ```
 
-### Ergebnis
-
-| Bedingung | Aktion |
-|------------|---------|
-| Hitzeschutz aktiv | Teilöffnung / Kippstellung |
-| Hitzeschutz nicht aktiv | Cover öffnen |
-
----
-
-## Tagesablauf
-
-### Morgens
-
-Zum definierten Morgentrigger:
-
-- Werktage separat konfigurierbar
-- Wochenenden separat konfigurierbar
-
-Aktion:
-
-- Hitzeschutz aktiv → Teilöffnung bzw. Kippstellung
-- Hitzeschutz inaktiv → Öffnen
-
----
-
-### Tagsüber
-
-Alle 15 Minuten wird der Sollzustand geprüft.
-
-Die Prüfung erfolgt nur ausserhalb der definierten Sperrzeiten.
-
----
-
-### Mittagszeit
-
-Optional kann das Cover zu Beginn der Mittags-Sperrzeit geschlossen werden.
-
-Nach Ende der Sperrzeit wird der Sollzustand neu berechnet.
-
----
-
-### Abend
-
-Optional kann das Cover bei der definierten Bettgehzeit geschlossen werden.
-
-Die Nacht-Sperrzeit endet automatisch beim nächsten Morgentrigger.
-
----
-
-## Sonnenstand
-
-Der Hitzeschutz kann optional auf Situationen beschränkt werden, in denen die Sonne tatsächlich auf die betreffende Fassade scheint.
-
-Konfigurierbar:
-
-- Azimut Minimum
-- Azimut Maximum
-- Mindesthöhe der Sonne
-
-Beispiel:
-
-```yaml
-Azimut Minimum: 135°
-Azimut Maximum: 225°
-Mindesthöhe: 10°
-```
-
----
-
-## Fenstersensor (optional)
-
-Wird ein Fenstersensor konfiguriert, reagiert der Blueprint auf Zustandsänderungen.
-
-### Fenster geöffnet
-
-Falls das Cover geschlossen ist:
-
-- Dachfenster → Teilöffnung
-- Lamellenstoren → Kippstellung
-
-### Fenster geschlossen
-
-Der Sollzustand wird neu ermittelt und die konfigurierten Sperrzeiten werden berücksichtigt.
-
----
-
-## Do Not Move
-
-Der Schalter
-
-```yaml
-input_boolean.cover_do_not_move
-```
-
-hat höchste Priorität.
-
-Wenn dieser auf `on` steht:
+Dann gilt:
 
 ```text
-Keine automatische Bewegung des Covers.
+Automation startet
+       │
+       ▼
+Do Not Move?
+       │
+      JA
+       ▼
+      STOP
 ```
+
+Die Automation läuft weiter, bewegt jedoch keinerlei Aktoren.
 
 ---
 
-## Benötigte Helfer
+# Simulationsmodus
 
-### Temperaturschwellenwert
+Im Simulationsmodus werden keine Covers bewegt.
 
-```yaml
-input_number.cover_temperatur_schwellenwert
-```
-
----
-
-### Teilöffnung Dachfenster
-
-```yaml
-input_number.external_cover_teiloffnung
-```
-
----
-
-### Kippstellung Lamellenstoren
-
-```yaml
-input_number.storren_kippstellung
-```
-
----
-
-### Do Not Move
-
-```yaml
-input_boolean.cover_do_not_move
-```
-
----
-
-### Zeit-Helfer
-
-```yaml
-input_datetime.cover_offnen_wochentags
-input_datetime.cover_offnen_wochenende
-
-input_datetime.cover_bett_geh_zeit_mittag_start
-input_datetime.cover_bett_geh_zeit_mittag_ende
-
-input_datetime.cover_bett_geh_zeit_abend
-```
-
----
-
-## Wetterdaten
-
-Der Blueprint verwendet die Forecast-Daten der gewählten Wetter-Entity.
-
-Aktuell wird die maximale Temperatur des ersten Forecast-Eintrags ausgewertet.
-
-Beispiel:
-
-```jinja
-state_attr(weather_entity, 'forecast')[0].temperature
-```
-
----
-
-## Beispielkonfiguration
-
-```yaml
-cover_entity: cover.schlafzimmer
-cover_type: dachfenster
-
-weather_entity: weather.weather_at_9444
-
-temperature_threshold_entity: input_number.cover_temperatur_schwellenwert
-
-partial_open_entity: input_number.external_cover_teiloffnung
-
-do_not_move_boolean: input_boolean.cover_do_not_move
-
-weekday_morning_time: input_datetime.cover_offnen_wochentags
-weekend_morning_time: input_datetime.cover_offnen_wochenende
-
-midday_start_time: input_datetime.cover_bett_geh_zeit_mittag_start
-midday_end_time: input_datetime.cover_bett_geh_zeit_mittag_ende
-
-evening_close_time: input_datetime.cover_bett_geh_zeit_abend
-
-close_before_midday: true
-close_before_evening: true
-
-enable_sun_condition: true
-
-sun_azimuth_min: 135
-sun_azimuth_max: 225
-sun_min_elevation: 10
-```
-
----
-
-## Installation
-
-### Import über GitHub
-
-In Home Assistant:
+Die komplette Entscheidungslogik wird trotzdem ausgeführt.
 
 ```text
-Einstellungen
-→ Automatisierungen & Szenen
-→ Blueprints
-→ Blueprint importieren
+Entscheidung berechnen
+          │
+          ▼
+Logging schreiben
+          │
+          ▼
+Keine Bewegung
 ```
 
-Danach die Raw-GitHub-URL des Blueprint-Files einfügen.
+Ideal zum Testen neuer Konfigurationen.
+
+---
+
+# Logging
+
+Optional können detaillierte Logbucheinträge erstellt werden.
 
 Beispiel:
 
 ```text
-https://raw.githubusercontent.com/<github-user>/<repository>/main/Smart-Cover-Automation.yaml
+Trigger=periodic_check
+TargetAction=heat_protection
+HotToday=true
+SunMatches=true
+BlockedTime=false
+```
+
+Dadurch kann jederzeit nachvollzogen werden:
+
+- warum eine Bewegung ausgelöst wurde
+- warum keine Bewegung erfolgte
+- welche Parameter zur Entscheidung geführt haben
+
+---
+
+# Unterstützte Covertypen
+
+| Covertyp | Verhalten |
+|------------|------------|
+| Dachfenster | Teilöffnung |
+| Lamellenstoren | Kippstellung |
+
+---
+
+# Empfohlene Helper
+
+| Typ | Beispiel |
+|------|-----------|
+| input_number | Temperatur Schwellenwert |
+| input_number | Teilöffnung Dachfenster |
+| input_number | Kippstellung Storen |
+| input_datetime | Öffnungszeiten |
+| input_datetime | Mittagssperrzeit |
+| input_datetime | Bettgehzeit |
+| input_boolean | Do Not Move |
+
+---
+
+# Beispielkonfiguration
+
+```text
+Temperatur Schwellenwert: 23°C
+
+Teilöffnung Dachfenster: 20 %
+
+Kippstellung Storen: 50 %
+
+Öffnen Werktags: 07:15
+
+Öffnen Wochenende: 07:30
+
+Mittag Start: 11:50
+
+Mittag Ende: 14:15
+
+Bettgehzeit Abend: 18:40
 ```
 
 ---
 
-## Einschränkungen
+# Zusammenfassung
 
-- Die Wetterintegration muss Forecast-Daten bereitstellen.
-- Nicht jedes Cover unterstützt Positionen oder Tilt-Werte.
-- Für Lamellenstoren muss `cover.set_cover_tilt_position` unterstützt werden.
-- Für Dachfenster muss `cover.set_cover_position` unterstützt werden.
+Die Smart-Cover-Automation kombiniert Wetterprognose, Sonnenstand, Tageszeit und Gebäudestatus, um Dachfenster und Storen automatisch zu steuern.
 
----
+Ziel ist:
 
-## Getestet mit
-
-- Home Assistant 2026.7.x
-- Wetter-Entitäten mit Forecast-Unterstützung
-- Dachfenstern mit Positionssteuerung
-- Lamellenstoren mit Tilt-Unterstützung
-
----
-
-## Autor
-
-Matthias Rohner
-
----
+- maximaler Komfort
+- automatischer Hitzeschutz
+- minimale manuelle Eingriffe
+- keine unnötigen Fahrbewegungen
+- nachvollziehbares Verhalten durch Logging
