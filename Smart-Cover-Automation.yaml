@@ -646,17 +646,40 @@ actions:
           seconds: 10
 
   # ------------------------------------------------------------
-  # NUR NOCH 3 FACHLICHE AUSFÜHRUNGSFÄLLE
+  # 3 FACHLICHE AUSFÜHRUNGSFÄLLE
   # ------------------------------------------------------------
-  - choose:
-      # Fall 1: Schliessen
-      - conditions:
+  - choose:     
+        # Fall 1: Schliessen
+        - conditions:
           - condition: template
             value_template: "{{ target_cover_action | trim == 'close' }}"
-        sequence:
-          - action: cover.close_cover
-            target:
-              entity_id: !input cover_entity
+          sequence:
+            - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ cover_type_var == 'lamellenstoren' }}"
+                sequence:
+                  - action: cover.close_cover
+                    target:
+                      entity_id: !input cover_entity
+                  - action: cover.set_cover_tilt_position
+                    target:
+                      entity_id: !input cover_entity
+                    data:
+                      tilt_position: 0
+              default:
+                - action: cover.close_cover
+                  target:
+                    entity_id: !input cover_entity
+
+#      # Fall 1: Schliessen
+#      - conditions:
+#          - condition: template
+#            value_template: "{{ target_cover_action | trim == 'close' }}"
+#        sequence:
+#          - action: cover.close_cover
+#            target:
+#              entity_id: !input cover_entity
 
       # Fall 2: Hitzeschutz / Lüftungsstellung
       - conditions:
