@@ -620,6 +620,15 @@ actions:
             HotToday={{ is_hot_today }};
             SunMatches={{ sun_matches_facade }};
             HeatProtection={{ is_heat_protection_required }};
+    else:
+        - action: logbook.log
+          data:
+            name: Smart Cover Automation
+            entity_id: !input cover_entity
+            message: >
+              {{ cover_name }};
+              TargetCoverAction={{target_cover_action}};
+
  
   # ------------------------------------------------------------
   # Wenn Simulation aktiv ist: hier stoppen.
