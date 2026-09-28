@@ -292,6 +292,7 @@ triggers:
 variables:
   cover_entity_var: !input cover_entity
   cover_type_var: !input cover_type
+  window_sensor_var: !input window_sensor
 
   logging_enabled_var: !input logging_enabled
   simulation_enabled_var: !input simulation_enabled
@@ -345,6 +346,10 @@ variables:
   do_not_move_state: >
     {{ states(do_not_move_var) }}
 
+  block_close_due_window: >
+    {{ cover_type_var == 'dachfenster'
+       and window_sensor_var is string and window_sensor_var | length > 0
+       and states(window_sensor_var) == 'on' }}
 
   # ------------------------------------------------------------
   # Wetter- und Sonnenberechnung
@@ -620,6 +625,7 @@ actions:
             HotToday={{ is_hot_today }};
             SunMatches={{ sun_matches_facade }};
             HeatProtection={{ is_heat_protection_required }};
+            BlockCloseWindow={{ block_close_due_window }};
     else:
         - action: logbook.log
           data:
@@ -643,6 +649,13 @@ actions:
   - condition: template
     value_template: "{{ not (is_cover_already_at_target | bool(false)) }}"
 
+  # ------------------------------------------------------------
+  # Sicherheit: Dachfenster nicht schliessen, wenn Fenster offen
+  # ------------------------------------------------------------
+  - condition: template
+    value_template: >
+      {{ not (target_cover_action | trim == 'close'
+              and block_close_due_window | bool(false)) }}
 
   #------------------------------------------------------------
   # Dachfenster verzögert ausführen
